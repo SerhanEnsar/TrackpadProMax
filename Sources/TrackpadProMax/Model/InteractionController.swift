@@ -33,8 +33,10 @@ final class InteractionController {
     private var nowPlayingTimer: Timer?
     /// While scrubbing, polled positions would yank the bar back; ignore them.
     private var scrubbingUntil = Date.distantPast
-    private var pendingSeek: TimeInterval?
-    private var seekScheduled = false
+    /// Hardware writes are coalesced to ~30 Hz; touch frames arrive at ~100 Hz.
+    private var pendingLevels: [SurfaceControl: Double] = [:]
+    private var pendingDeviceVolumes: [AudioOutputDevice.ID: Double] = [:]
+    private var writeScheduled = false
     private var adjustStep: [SurfaceEdge: Int] = [:]
 
     init(pipeline: TouchPipeline) {
@@ -185,18 +187,26 @@ final class InteractionController {
         }
     }
 
-    /// Seeks at most ~8 times a second while scrubbing, plus once at the end.
-    private func scheduleSeek(_ seconds: TimeInterval, flush: Bool = false) {
-        pendingSeek = seconds
-        guard !seekScheduled || flush else { return }
-        seekScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + (flush ? 0 : 0.12)) { [weak self] in
-            guard let self else { return }
-            self.seekScheduled = false
-            guard let target = self.pendingSeek else { return }
-            self.pendingSeek = nil
-            NowPlayingCenter.shared.seek(to: target, appBundleID: self.state.nowPlaying?.appBundleID)
+    /// One seek when the finger lifts: players apply it in one jump, and the
+    /// poller resumes only after it had time to land.
+    private func seek(to seconds: TimeInterval) {
+        NowPlayingCenter.shared.seek(to: seconds, appBundleID: state.nowPlaying?.appBundleID) { [weak self] in
+            self?.scrubbingUntil = Date().addingTimeInterval(0.6)
         }
+    }
+
+    private func scheduleWrite() {
+        guard !writeScheduled else { return }
+        writeScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 30) { [weak self] in self?.flushWrites() }
+    }
+
+    private func flushWrites() {
+        writeScheduled = false
+        for (control, value) in pendingLevels { SystemControls.set(control, to: value) }
+        for (id, value) in pendingDeviceVolumes { AudioDevices.setVolume(value, for: id) }
+        pendingLevels = [:]
+        pendingDeviceVolumes = [:]
     }
 
     private func handleSurface(_ events: [ControlSurfaceTracker.Event]) {
@@ -218,11 +228,12 @@ final class InteractionController {
                 state.surfaceValues[edge] = target
                 if control == .seek {
                     guard let track = state.nowPlaying, track.duration > 0 else { continue }
-                    scrubbingUntil = Date().addingTimeInterval(1.5)
+                    // Hold off polled positions until the final seek has landed.
+                    scrubbingUntil = .distantFuture
                     state.nowPlaying?.elapsed = target * track.duration
-                    scheduleSeek(target * track.duration)
                 } else {
-                    SystemControls.set(control, to: target)
+                    pendingLevels[control] = target
+                    scheduleWrite()
                 }
                 let newStep = step(target)
                 if newStep != adjustStep[edge] {
@@ -241,7 +252,14 @@ final class InteractionController {
                 }
             case let .ended(edge):
                 if state.activeEdge == edge { state.activeEdge = nil }
-                if state.surfaceLayout[edge] == .seek, let pendingSeek { scheduleSeek(pendingSeek, flush: true) }
+                if state.surfaceLayout[edge] == .seek {
+                    if let track = state.nowPlaying, track.duration > 0 {
+                        seek(to: (state.surfaceValues[edge] ?? 0) * track.duration)
+                    } else {
+                        scrubbingUntil = .distantPast
+                    }
+                }
+                flushWrites()
             case let .deepPress(edge):
                 if state.surfaceLayout[edge] == .volume {
                     openDevicePicker()
@@ -309,9 +327,11 @@ final class InteractionController {
                 let old = picker.volumes[id] ?? 0
                 let value = min(1, max(0, old + delta))
                 picker.volumes[id] = value
-                AudioDevices.setVolume(value, for: id)
+                pendingDeviceVolumes[id] = value
+                scheduleWrite()
                 if step(value) != step(old) { HapticEngine.shared.play(value <= 0 || value >= 1 ? .medium : .tick) }
             case let .activate(index):
+                flushWrites()
                 let id = picker.devices[index].id
                 AudioDevices.makeDefault(id)
                 for i in picker.devices.indices { picker.devices[i].isDefault = picker.devices[i].id == id }

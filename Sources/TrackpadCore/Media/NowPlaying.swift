@@ -43,16 +43,36 @@ public final class NowPlayingCenter: @unchecked Sendable {
         }
     }
 
-    /// Jumps to `seconds` in the current track.
-    public func seek(to seconds: TimeInterval, appBundleID: String?) {
-        queue.async { [remote] in
-            if let appBundleID, ScriptedPlayers.isScriptable(appBundleID) {
-                ScriptedPlayers.seek(appBundleID, to: seconds)
-            } else {
-                remote.seek(to: seconds)
+    /// Jumps to `seconds` in the current track. Seeks requested while one is
+    /// still running collapse into the latest. `done` runs on the main actor.
+    public func seek(to seconds: TimeInterval, appBundleID: String?, done: @escaping @MainActor @Sendable () -> Void = {}) {
+        let start = seekLock.withLock {
+            pendingSeek = (seconds, appBundleID)
+            defer { seeking = true }
+            return !seeking
+        }
+        guard start else { return }
+        seekQueue.async { [self] in
+            while let next = seekLock.withLock({ () -> (TimeInterval, String?)? in
+                defer { pendingSeek = nil }
+                if pendingSeek == nil { seeking = false }
+                return pendingSeek
+            }) {
+                if let bundleID = next.1, ScriptedPlayers.isScriptable(bundleID) {
+                    ScriptedPlayers.seek(bundleID, to: next.0)
+                } else {
+                    remote.seek(to: next.0)
+                }
+                Log.action.notice("Seek to \(Int(next.0), privacy: .public)s via \(next.1 ?? "MediaRemote", privacy: .public)")
             }
+            Task { @MainActor in done() }
         }
     }
+
+    private let seekQueue = DispatchQueue(label: "TrackpadProMax.seek", qos: .userInitiated)
+    private let seekLock = NSLock()
+    private var pendingSeek: (TimeInterval, String?)?
+    private var seeking = false
 }
 
 // MARK: - MediaRemote

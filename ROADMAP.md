@@ -24,7 +24,6 @@ When you switch to an app that has gestures, a small notification-style card wit
 - [x] Surface modes: on-screen trackpad with edge bars (volume, brightness, keyboard backlight, tracks, scrubbing)
 - [x] Music surface with now-playing info
 - [x] Output-device bars: hard-press the volume bar, pick a device, set its volume, switch output
-- [ ] Per-app volume bars (Core Audio process taps; needs the system audio recording permission)
 - [ ] More surfaces (numpad, app-specific panels)
 
 ## v0.3 — Continuous pressure controls

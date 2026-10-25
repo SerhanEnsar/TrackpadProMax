@@ -19,8 +19,9 @@ final class InputLock {
         guard !isEngaged else { return }
         isEngaged = true
         frozenAt = CGEvent(source: nil)?.location ?? .zero
-        // Detach the cursor from mouse movement; the tap below is the backstop.
+        // Detach the cursor from mouse movement and hide it; the tap below is the backstop.
         CGAssociateMouseAndMouseCursorPosition(0)
+        CursorVisibility.hide()
         startTap()
         let escape: (NSEvent) -> Bool = { [weak self] event in
             guard event.keyCode == 53 else { return false }
@@ -40,6 +41,7 @@ final class InputLock {
         guard isEngaged else { return }
         isEngaged = false
         CGAssociateMouseAndMouseCursorPosition(1)
+        CursorVisibility.show()
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
@@ -85,8 +87,10 @@ final class InputLock {
         }
         guard isEngaged else { return event }
         if event.getIntegerValueField(.eventSourceUserData) == ClickGate.syntheticMarker { return event }
+        // Only warp if the cursor actually escaped; warping on every event stutters.
         if type == .mouseMoved || type == .leftMouseDragged || type == .rightMouseDragged {
-            CGWarpMouseCursorPosition(frozenAt)
+            let p = event.location
+            if abs(p.x - frozenAt.x) > 1 || abs(p.y - frozenAt.y) > 1 { CGWarpMouseCursorPosition(frozenAt) }
         }
         return nil
     }
@@ -99,4 +103,40 @@ private let inputLockCallback: CGEventTapCallBack = { _, type, event, userInfo i
     nonisolated(unsafe) var output: CGEvent?
     MainActor.assumeIsolated { output = lock.handle(type, input) }
     return output.map { Unmanaged.passUnretained($0) }
+}
+
+/// Hides the cursor even though TrackpadProMax is a background app.
+///
+/// `CGDisplayHideCursor` only works for the frontmost app unless the
+/// connection has the (private) "SetsCursorInBackground" property.
+@MainActor
+enum CursorVisibility {
+    private typealias DefaultConnection = @convention(c) () -> Int32
+    private typealias SetProperty = @convention(c) (Int32, Int32, CFString, CFTypeRef) -> Int32
+
+    private static var hidden = false
+
+    private static let enableBackgroundCursor: Void = {
+        let path = "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+        guard let handle = dlopen(path, RTLD_NOW),
+              let connSym = dlsym(handle, "_CGSDefaultConnection"),
+              let setSym = dlsym(handle, "CGSSetConnectionProperty") else { return }
+        let connection = unsafeBitCast(connSym, to: DefaultConnection.self)()
+        _ = unsafeBitCast(setSym, to: SetProperty.self)(
+            connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue
+        )
+    }()
+
+    static func hide() {
+        guard !hidden else { return }
+        _ = enableBackgroundCursor
+        CGDisplayHideCursor(CGMainDisplayID())
+        hidden = true
+    }
+
+    static func show() {
+        guard hidden else { return }
+        CGDisplayShowCursor(CGMainDisplayID())
+        hidden = false
+    }
 }
