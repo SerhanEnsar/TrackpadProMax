@@ -53,6 +53,8 @@ final class InteractionController {
         state.wheelHighlighted = nil
         state.wheelKnob = Point(x: 0, y: 0)
         isWheelOpen = true
+        // The wheel replaces the surface on screen; cancelling brings it back.
+        surfacePanel.hide()
         input.install(.wheel(RadialSelector(itemCount: modes.count)), waitForLift: !touchesAreUp)
         inputLock.engage()
         wheelPanel.show(ModeWheelView(state: state))
@@ -60,16 +62,20 @@ final class InteractionController {
         restartIdleTimer()
     }
 
-    func closeWheel() {
+    /// `restoreSurface: false` when a mode was picked: the caller switches
+    /// modes right after, so the old surface must not flash back.
+    func closeWheel(restoreSurface: Bool = true) {
         guard isWheelOpen else { return }
         isWheelOpen = false
         wheelPanel.hide()
-        if let surfaceMode {
-            // Back to the surface the wheel was opened from.
-            input.install(.surface(ControlSurfaceTracker()), waitForLift: true)
-            surfacePanel.show(ControlSurfaceView(state: state))
-            state.surfaceName = surfaceMode.name
-            restartIdleTimer()
+        if surfaceMode != nil {
+            if restoreSurface {
+                // Back to the surface the wheel was opened from.
+                restoreSurfaceAfterWheel()
+            } else {
+                // Keep the lock: the caller is about to switch modes.
+                input.install(.none, waitForLift: false)
+            }
         } else {
             input.install(.none, waitForLift: false)
             inputLock.release()
@@ -88,8 +94,14 @@ final class InteractionController {
             case let .confirm(index):
                 let picked = index.flatMap { state.wheelItems.indices.contains($0) ? state.wheelItems[$0].id : nil }
                 HapticEngine.shared.play(picked == nil ? .weak : .click)
-                closeWheel()
-                if let picked { onSelectMode(picked) }
+                guard let picked else {
+                    closeWheel()
+                    return
+                }
+                closeWheel(restoreSurface: false)
+                onSelectMode(picked)
+                // Picked the surface that was already active: show it again.
+                if surfaceMode != nil, !surfacePanel.isVisible { restoreSurfaceAfterWheel() }
                 return
             }
         }
@@ -97,6 +109,14 @@ final class InteractionController {
     }
 
     // MARK: - Control surface
+
+    private func restoreSurfaceAfterWheel() {
+        guard let surfaceMode else { return }
+        state.surfaceName = surfaceMode.name
+        input.install(.surface(ControlSurfaceTracker()), waitForLift: true)
+        surfacePanel.show(ControlSurfaceView(state: state))
+        restartIdleTimer()
+    }
 
     func enterSurface(_ mode: Mode) {
         guard let layout = mode.surface else { return }
