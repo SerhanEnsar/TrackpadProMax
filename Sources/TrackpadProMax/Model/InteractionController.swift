@@ -269,7 +269,7 @@ final class InteractionController {
     private func startTimerTool() {
         state.timerMinutes = lastTimerMinutes
         state.timerRemaining = timerRemaining()
-        input.install(.timer(TimerKnob(minutes: lastTimerMinutes)), waitForLift: !touchesAreUp)
+        input.install(.timer(TimerKnob(minutes: lastTimerMinutes, startThreshold: deepPressThreshold)), waitForLift: !touchesAreUp)
         inputLock.engage()
         timerPanel.show(TimerKnobView(state: state))
         timerRefresh = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -358,7 +358,7 @@ final class InteractionController {
     // MARK: Window tiling
 
     private func startTiling() {
-        let apps = WindowTiler.appsWithWindows()
+        let apps = WindowTiler.runningApps()
         state.tiling = OverlayState.TilingState(apps: apps)
         input.install(.tiling(TilingFlow(appCount: apps.count, pressThreshold: pressThreshold)), waitForLift: !touchesAreUp)
         inputLock.engage()
@@ -595,8 +595,9 @@ final class InteractionController {
                     HapticEngine.shared.play(.medium)
                     state.nowPlaying?.isPlaying.toggle()
                 case .back:
+                    // Back = to the main mode wheel, not all the way out.
                     HapticEngine.shared.play(.weak)
-                    escape()
+                    onBackToWheel()
                     return
                 }
             }

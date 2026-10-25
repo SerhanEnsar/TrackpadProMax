@@ -44,13 +44,13 @@ public enum SurfaceControl: String, Sendable, Codable, CaseIterable {
 public enum SurfaceCenter: String, Sendable, Codable, CaseIterable {
     /// Shows the playing track; a tap plays/pauses.
     case nowPlaying
-    /// A tap closes the surface and goes back to the Normal mode.
+    /// A tap goes back to the main mode wheel.
     case back
 
     public var displayName: String {
         switch self {
         case .nowPlaying: "Now playing (tap = play/pause)"
-        case .back: "Back (tap = close)"
+        case .back: "Back (tap = mode wheel)"
         }
     }
 }

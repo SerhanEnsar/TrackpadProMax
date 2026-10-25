@@ -27,14 +27,14 @@ struct ControlSurfaceView: View {
                                        hint: "Tap the middle to play/pause")
                     case .back where state.surfaceLayout.showsNowPlaying:
                         NowPlayingCard(track: state.nowPlaying, modeName: state.surfaceName,
-                                       hint: "Tap the middle to go back")
+                                       hint: "Tap the middle for the mode wheel")
                     case .back:
                         VStack(spacing: 6) {
                             Image(systemName: "chevron.backward.circle.fill")
                                 .font(.system(size: 34))
                                 .foregroundStyle(.tint)
                             Text(state.surfaceName).font(.system(size: 20, weight: .bold, design: .rounded))
-                            Text("Tap the middle to go back")
+                            Text("Tap the middle for the mode wheel")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -179,7 +179,7 @@ private struct NowPlayingCard: View {
                     Text(modeName).font(.headline)
                     Text("Nothing playing").font(.subheadline).foregroundStyle(.secondary)
                 }
-                Label(hint, systemImage: hint.contains("back") ? "chevron.backward.circle" : "playpause")
+                Label(hint, systemImage: hint.contains("play") ? "playpause" : "chevron.backward.circle")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }

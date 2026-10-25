@@ -42,12 +42,12 @@ struct TimerKnobView: View {
             VStack(spacing: 4) {
                 if let remaining = state.timerRemaining {
                     Text(Self.clock(remaining)).font(.system(size: 44, weight: .heavy, design: .rounded)).monospacedDigit()
-                    Text("left · tap to cancel").font(.caption).foregroundStyle(.secondary)
+                    Text("left · press firmly to cancel").font(.caption).foregroundStyle(.secondary)
                 } else {
                     Text("\(state.timerMinutes)").font(.system(size: 56, weight: .heavy, design: .rounded)).monospacedDigit()
                     Text(state.timerMinutes == 1 ? "minute" : "minutes").font(.headline).foregroundStyle(.secondary)
                 }
-                Text("Circle to set · tap to start · tap the middle to go back")
+                Text("Circle to set · press firmly to start · tap the middle to go back")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)

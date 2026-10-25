@@ -147,6 +147,40 @@ private func run(_ flow: inout TilingFlow, _ pad: Pad) -> [TilingFlow.Event] {
         #expect(flow.phase == .assign)
     }
 
+    @Test func staggeredTwoFingerTapConfirms() {
+        var (flow, pad) = adjusting(count: 2)
+        let a = Point(x: 0.4, y: 0.5), b = Point(x: 0.52, y: 0.5)
+        var t = pad.t
+        func frame(_ touches: [Touch]) -> TouchFrame { t += 0.01; return TouchFrame(timestamp: t, touches: touches) }
+        var frames: [TouchFrame] = []
+        for _ in 0..<6 { frames.append(frame([Touch(id: 20, phase: .touching, position: a, pressure: 20)])) }
+        for _ in 0..<10 {
+            frames.append(frame([Touch(id: 20, phase: .touching, position: a, pressure: 20),
+                                 Touch(id: 21, phase: .touching, position: b, pressure: 20)]))
+        }
+        for _ in 0..<5 { frames.append(frame([Touch(id: 21, phase: .touching, position: b, pressure: 20)])) }
+        frames.append(frame([]))
+        pad.frames = frames
+        #expect(run(&flow, pad).contains(.confirmLayout))
+    }
+
+    @Test func twoFingerDragDoesNotConfirm() {
+        var (flow, pad) = adjusting(count: 2)
+        var t = pad.t
+        var frames: [TouchFrame] = []
+        for i in 0..<15 {
+            t += 0.01
+            let dx = Double(i) * 0.02
+            frames.append(TouchFrame(timestamp: t, touches: [
+                Touch(id: 30, phase: .touching, position: Point(x: 0.3 + dx, y: 0.5), pressure: 20),
+                Touch(id: 31, phase: .touching, position: Point(x: 0.4 + dx, y: 0.5), pressure: 20),
+            ]))
+        }
+        frames.append(TouchFrame(timestamp: t + 0.01, touches: []))
+        pad.frames = frames
+        #expect(!run(&flow, pad).contains(.confirmLayout))
+    }
+
     @Test func dragAppsIntoPanesCompletes() {
         var (flow, pad) = adjusting(count: 2, apps: 3)
         pad.twoFingerTap()

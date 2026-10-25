@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Fixed
+- Window tiling lists every open app (it used to miss apps on other desktops or behind a full-screen app) and places all of them: hidden or other-desktop apps are brought over, full-screen windows leave full screen first, and each placement is checked and retried.
+- The two-finger confirm in window tiling works when the fingers land or lift a moment apart.
+- The timer starts with a firm press, so it no longer clashes with the Back tap in the middle.
+- Back in the middle of surfaces and tools returns to the mode wheel instead of closing everything.
 - Surface bars now fill smoothly all the way down to 0 % (they used to stop moving below about 22 %).
 - Multi-finger touches no longer trigger surface bars or the middle play/pause tap.
 

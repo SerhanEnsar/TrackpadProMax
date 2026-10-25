@@ -38,10 +38,31 @@ import Testing
         #expect(knob.minutes == 15)
     }
 
-    @Test func tapStartsAndCenterTapGoesBack() {
+    func press(at p: Point, id: Int = 7, from x0: Double? = nil) -> [TouchFrame] {
+        (0..<12).map { i in
+            let x = x0.map { $0 + (p.x - $0) * Double(i) / 11 } ?? p.x
+            return TouchFrame(timestamp: 8 + Double(i) * 0.01, touches: [
+                Touch(id: id, phase: .touching, position: Point(x: x, y: p.y), pressure: i < 4 ? 100 : 900),
+            ])
+        } + [TouchFrame(timestamp: 8.2, touches: [])]
+    }
+
+    @Test func firmPressStartsLightTapDoesNot() {
         var knob = TimerKnob(minutes: 10)
-        #expect(tap(at: Point(x: 0.8, y: 0.8)).flatMap { knob.process($0) } == [.start(10)])
+        #expect(tap(at: Point(x: 0.8, y: 0.8)).flatMap { knob.process($0) }.isEmpty)
+        #expect(press(at: Point(x: 0.8, y: 0.8)).flatMap { knob.process($0) } == [.start(10)])
+    }
+
+    @Test func centerTapGoesBackAndCenterPressDoesNotStart() {
+        var knob = TimerKnob(minutes: 10)
         #expect(tap(at: Point(x: 0.5, y: 0.5)).flatMap { knob.process($0) } == [.back])
+        #expect(!press(at: Point(x: 0.5, y: 0.5)).flatMap { knob.process($0) }.contains(.start(10)))
+    }
+
+    @Test func pressWhileSlidingDoesNotStart() {
+        var knob = TimerKnob(minutes: 10)
+        let events = press(at: Point(x: 0.9, y: 0.8), from: 0.6).flatMap { knob.process($0) }
+        #expect(!events.contains(.start(10)))
     }
 }
 

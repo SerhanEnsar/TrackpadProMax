@@ -46,13 +46,16 @@ public struct TilingFlow: Sendable {
     /// Width of the app strip on the left of the trackpad in the assign phase.
     public static let stripWidth = 0.22
     public var stripStep = 0.08
-    public var maxTapDuration: TimeInterval = 0.3
+    /// Generous, because two fingers rarely land and lift at the same moment.
+    public var maxTapDuration: TimeInterval = 0.4
     public var maxTapMovement = 0.04
 
     // Touch session state
     private var sessionStart: TimeInterval?
     private var maxFingers = 0
-    private var startCentroid = Point(x: 0, y: 0)
+    /// Where each finger first touched; movement is measured per finger, since
+    /// the centroid jumps when a second finger lands a moment later.
+    private var startPositions: [Int: Point] = [:]
     private var sessionMovement = 0.0
     private var pressed = false
     /// After a phase change, ignore touches until all fingers lift.
@@ -90,11 +93,17 @@ public struct TilingFlow: Sendable {
         if sessionStart == nil {
             sessionStart = frame.timestamp
             maxFingers = 0
-            startCentroid = centroid(active)
+            startPositions = [:]
             sessionMovement = 0
         }
         maxFingers = max(maxFingers, active.count)
-        sessionMovement = max(sessionMovement, startCentroid.distance(to: centroid(active)))
+        for touch in active {
+            if let origin = startPositions[touch.id] {
+                sessionMovement = max(sessionMovement, origin.distance(to: touch.position))
+            } else {
+                startPositions[touch.id] = touch.position
+            }
+        }
         // Multi-finger contact is reserved for the two-finger tap.
         guard maxFingers == 1, let touch = active.first else {
             return releaseEverything()
@@ -255,10 +264,5 @@ public struct TilingFlow: Sendable {
             events.append(.confirmLayout)
         }
         return events
-    }
-
-    private func centroid(_ touches: [Touch]) -> Point {
-        let n = Double(touches.count)
-        return Point(x: touches.map(\.position.x).reduce(0, +) / n, y: touches.map(\.position.y).reduce(0, +) / n)
     }
 }
