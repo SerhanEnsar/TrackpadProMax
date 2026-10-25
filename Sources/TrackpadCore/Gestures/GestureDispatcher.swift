@@ -44,7 +44,11 @@ public final class GestureDispatcher {
     }
 
     private func fire(_ event: GestureEvent) {
-        guard let binding = configuration.activeMode.binding(for: event.trigger, bundleID: frontmostBundleID) else { return }
+        guard let binding = configuration.activeMode.binding(for: event.trigger, bundleID: frontmostBundleID) else {
+            Log.gesture.notice("No binding for \(event.trigger.displayName, privacy: .public) in mode \(self.configuration.activeMode.name, privacy: .public)")
+            return
+        }
+        Log.action.notice("Firing \(binding.action.displayName, privacy: .public)")
         if configuration.hapticOnTrigger { haptic(configuration.triggerHaptic) }
         onFire?(event, binding)
         perform(binding.action)

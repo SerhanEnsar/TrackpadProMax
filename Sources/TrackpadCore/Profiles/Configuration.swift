@@ -61,6 +61,10 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
 
 /// Everything the user can configure. Persisted as JSON.
 public struct Configuration: Sendable, Codable, Equatable {
+    /// Bumped when stored values need migrating. See `migrate()`.
+    public static let currentSchemaVersion = 1
+
+    public var schemaVersion = Configuration.currentSchemaVersion
     public var isEnabled = true
     public var modes: [Mode]
     public var activeModeID: UUID
@@ -77,6 +81,36 @@ public struct Configuration: Sendable, Codable, Equatable {
         precondition(!modes.isEmpty, "Configuration needs at least one mode")
         self.modes = modes
         self.activeModeID = activeModeID ?? modes[0].id
+    }
+
+    /// Missing keys fall back to defaults so older settings files keep loading.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let modes = try c.decode([Mode].self, forKey: .modes)
+        guard !modes.isEmpty else {
+            throw DecodingError.dataCorruptedError(forKey: .modes, in: c, debugDescription: "No modes")
+        }
+        self.init(modes: modes, activeModeID: try c.decodeIfPresent(UUID.self, forKey: .activeModeID))
+        let d = Configuration(modes: modes)
+        schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 0
+        isEnabled = try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? d.isEnabled
+        gestures = try c.decodeIfPresent(GestureSettings.self, forKey: .gestures) ?? d.gestures
+        hapticOnTrigger = try c.decodeIfPresent(Bool.self, forKey: .hapticOnTrigger) ?? d.hapticOnTrigger
+        triggerHaptic = try c.decodeIfPresent(HapticPattern.self, forKey: .triggerHaptic) ?? d.triggerHaptic
+        modeHotkey = c.contains(.modeHotkey) ? try c.decodeIfPresent(KeyCombo.self, forKey: .modeHotkey) : d.modeHotkey
+        if !modes.contains(where: { $0.id == activeModeID }) { activeModeID = modes[0].id }
+        migrate()
+    }
+
+    /// Upgrades values written by older versions.
+    mutating func migrate() {
+        if schemaVersion < 1 {
+            // Pre-0.1 thresholds were guesses that made firm taps count as presses.
+            var old = GestureSettings()
+            (old.lightThreshold, old.mediumThreshold, old.hardThreshold, old.maxTapMovement) = (60, 220, 420, 0.03)
+            if gestures == old { gestures = GestureSettings() }
+        }
+        schemaVersion = Self.currentSchemaVersion
     }
 
     public var activeMode: Mode {

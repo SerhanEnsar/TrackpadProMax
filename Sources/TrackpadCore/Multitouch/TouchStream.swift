@@ -40,7 +40,10 @@ public final class TouchStream: @unchecked Sendable {
     }
 
     public func start() {
-        guard let bridge = MultitouchBridge.shared else { return }
+        guard let bridge = MultitouchBridge.shared else {
+            Log.touch.error("MultitouchSupport unavailable")
+            return
+        }
         lock.lock()
         defer { lock.unlock() }
         guard !isRunning, let found = bridge.deviceList() else { return }
@@ -51,6 +54,7 @@ public final class TouchStream: @unchecked Sendable {
             bridge.start(device, 0)
         }
         isRunning = true
+        Log.touch.notice("Started \(self.devices.count, privacy: .public) multitouch device(s)")
     }
 
     public func stop() {

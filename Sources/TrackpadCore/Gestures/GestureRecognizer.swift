@@ -2,16 +2,19 @@ import Foundation
 
 /// Tunable thresholds for gesture recognition.
 public struct GestureSettings: Sendable, Codable, Equatable {
-    /// Force needed to reach each tier. Raw MultitouchSupport units (roughly grams).
-    public var lightThreshold: Double = 60
-    public var mediumThreshold: Double = 220
-    public var hardThreshold: Double = 420
+    /// Force needed to reach each tier, in raw MultitouchSupport units (roughly
+    /// grams). Measured on a MacBook Air M4: resting finger 3–60, tap up to ~140
+    /// per finger, normal click 150–250, deliberate hard press 850–1200.
+    /// A light press also requires a physical click (see `registerPhysicalClick`).
+    public var lightThreshold: Double = 120
+    public var mediumThreshold: Double = 400
+    public var hardThreshold: Double = 750
     /// A tier is left once force drops below `threshold * releaseRatio`.
     public var releaseRatio: Double = 0.7
     /// Taps must be shorter than this.
     public var maxTapDuration: TimeInterval = 0.22
     /// Max finger travel during a tap or press, in normalized units.
-    public var maxTapMovement: Double = 0.03
+    public var maxTapMovement: Double = 0.05
     public var maxPressMovement: Double = 0.06
     /// Second tap must start within this time after the first ends.
     public var doubleTapInterval: TimeInterval = 0.3
@@ -19,6 +22,21 @@ public struct GestureSettings: Sendable, Codable, Equatable {
     public var zoneMargin: Double = 0.18
 
     public init() {}
+
+    /// Missing keys fall back to defaults so older settings files keep loading.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = GestureSettings()
+        lightThreshold = try c.decodeIfPresent(Double.self, forKey: .lightThreshold) ?? d.lightThreshold
+        mediumThreshold = try c.decodeIfPresent(Double.self, forKey: .mediumThreshold) ?? d.mediumThreshold
+        hardThreshold = try c.decodeIfPresent(Double.self, forKey: .hardThreshold) ?? d.hardThreshold
+        releaseRatio = try c.decodeIfPresent(Double.self, forKey: .releaseRatio) ?? d.releaseRatio
+        maxTapDuration = try c.decodeIfPresent(Double.self, forKey: .maxTapDuration) ?? d.maxTapDuration
+        maxTapMovement = try c.decodeIfPresent(Double.self, forKey: .maxTapMovement) ?? d.maxTapMovement
+        maxPressMovement = try c.decodeIfPresent(Double.self, forKey: .maxPressMovement) ?? d.maxPressMovement
+        doubleTapInterval = try c.decodeIfPresent(Double.self, forKey: .doubleTapInterval) ?? d.doubleTapInterval
+        zoneMargin = try c.decodeIfPresent(Double.self, forKey: .zoneMargin) ?? d.zoneMargin
+    }
 
     public func threshold(for tier: PressTier) -> Double {
         switch tier {
@@ -61,6 +79,8 @@ public struct GestureRecognizer: Sendable {
         var pendingFingers = 0
         var pendingLocation = Point(x: 0, y: 0)
         var armed = true
+        /// The trackpad physically clicked during this session.
+        var clicked = false
     }
 
     private var session: Session?
@@ -72,6 +92,16 @@ public struct GestureRecognizer: Sendable {
 
     /// Current max force across active fingers in the last processed frame.
     public private(set) var currentForce = 0.0
+
+    /// Max finger travel in the current session, normalized.
+    public var currentMovement: Double { session?.maxMovement ?? 0 }
+
+    /// Call when the system reports a mouse-down while fingers are on the trackpad.
+    /// Separates real clicks from firm taps, whose force overlaps a light click.
+    /// Tap-to-click events arrive after the fingers lift and are ignored.
+    public mutating func registerPhysicalClick() {
+        session?.clicked = true
+    }
 
     public mutating func process(_ frame: TouchFrame) -> [GestureEvent] {
         let active = frame.activeTouches
@@ -131,6 +161,11 @@ public struct GestureRecognizer: Sendable {
         // the tier, so a hard press does not also fire light and medium.
         let releasing = force < settings.threshold(for: tier) * settings.releaseRatio
         guard tier == .hard || releasing else { return [] }
+        guard tier != .light || s.clicked else {
+            // Firm tap, not a click: drop it and wait for the next press.
+            s.pendingTier = nil
+            return []
+        }
         return [emitPress(&s, tier: tier, at: time)]
     }
 
@@ -147,13 +182,13 @@ public struct GestureRecognizer: Sendable {
 
     private mutating func finish(_ s: Session, at time: TimeInterval) -> [GestureEvent] {
         var s = s
-        if let tier = s.pendingTier, s.maxMovement <= settings.maxPressMovement {
+        if let tier = s.pendingTier, s.maxMovement <= settings.maxPressMovement, tier != .light || s.clicked {
             return [emitPress(&s, tier: tier, at: time)]
         }
-        guard !s.pressFired,
+        guard !s.pressFired, !s.clicked,
               time - s.start <= settings.maxTapDuration,
               s.maxMovement <= settings.maxTapMovement,
-              s.peakForce < settings.lightThreshold
+              s.peakForce < settings.mediumThreshold
         else {
             lastTap = nil
             return []

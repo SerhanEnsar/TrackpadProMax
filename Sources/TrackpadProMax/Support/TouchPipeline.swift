@@ -18,6 +18,11 @@ final class TouchPipeline: @unchecked Sendable {
 
     var latestFrame: TouchFrame { lock.withLock { latest } }
 
+    /// Forwards a system mouse-down so the recognizer can tell clicks from taps.
+    func registerPhysicalClick() {
+        lock.withLock { recognizer.registerPhysicalClick() }
+    }
+
     var settings: GestureSettings {
         get { lock.withLock { recognizer.settings } }
         set { lock.withLock { recognizer.settings = newValue } }
@@ -33,13 +38,51 @@ final class TouchPipeline: @unchecked Sendable {
         token = nil
     }
 
+    // Per-touch-session stats, logged on lift to help calibrate thresholds.
+    private var sessionStart: TimeInterval?
+    private var sessionFingers = 0
+    private var sessionPeak = 0.0
+    private var sessionStates: Set<Int> = []
+    private var sessionMovement = 0.0
+
     private func process(_ frame: TouchFrame) {
         let events = lock.withLock {
             latest = frame
+            trackSession(frame)
             return recognizer.process(frame)
+        }
+        for event in events {
+            Log.gesture.notice("Recognized \(event.trigger.displayName, privacy: .public)")
         }
         guard !events.isEmpty else { return }
         let onGesture = onGesture
         Task { @MainActor in events.forEach(onGesture) }
+    }
+
+    private func trackSession(_ frame: TouchFrame) {
+        sessionStates.formUnion(frame.touches.map(\.phase.rawValue))
+        let active = frame.activeTouches
+        if active.isEmpty {
+            guard let start = sessionStart else { return }
+            Log.touch.notice("""
+            Touch session: \(self.sessionFingers, privacy: .public) finger(s), \
+            \(Int((frame.timestamp - start) * 1000), privacy: .public) ms, \
+            peak force \(Int(self.sessionPeak), privacy: .public), \
+            movement \(String(format: "%.3f", self.sessionMovement), privacy: .public), \
+            states \(self.sessionStates.sorted().description, privacy: .public)
+            """)
+            sessionStart = nil
+            return
+        }
+        if sessionStart == nil {
+            sessionStart = frame.timestamp
+            sessionFingers = 0
+            sessionPeak = 0
+            sessionStates = []
+            sessionMovement = 0
+        }
+        sessionFingers = max(sessionFingers, active.count)
+        sessionPeak = max(sessionPeak, active.map(\.pressure).max() ?? 0)
+        sessionMovement = max(sessionMovement, recognizer.currentMovement)
     }
 }

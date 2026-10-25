@@ -60,4 +60,27 @@ import Testing
         #expect(loaded.modes.map(\.name) == Configuration.defaults.modes.map(\.name))
         #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("config.broken.json").path))
     }
+
+    @Test func oldFileWithoutNewKeysStillLoads() throws {
+        let json = """
+        {"modes":[{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"Only","symbol":"star","bindings":[],"appProfiles":[]}],
+         "activeModeID":"6F9619FF-8B86-D011-B42D-00C04FC964FF",
+         "gestures":{"lightThreshold":60,"mediumThreshold":220,"hardThreshold":420,"releaseRatio":0.7,
+                     "maxTapDuration":0.22,"maxTapMovement":0.03,"maxPressMovement":0.06,
+                     "doubleTapInterval":0.3,"zoneMargin":0.18}}
+        """
+        let config = try JSONDecoder().decode(Configuration.self, from: Data(json.utf8))
+        #expect(config.modes.map(\.name) == ["Only"])
+        #expect(config.gestures == GestureSettings(), "pre-0.1 default thresholds are migrated")
+        #expect(config.modeHotkey == Configuration.defaults.modeHotkey)
+        #expect(config.schemaVersion == Configuration.currentSchemaVersion)
+    }
+
+    @Test func customThresholdsSurviveMigration() throws {
+        var old = Configuration.defaults
+        old.gestures.hardThreshold = 999
+        old.schemaVersion = 0
+        let data = try JSONEncoder().encode(old)
+        #expect(try JSONDecoder().decode(Configuration.self, from: data).gestures.hardThreshold == 999)
+    }
 }

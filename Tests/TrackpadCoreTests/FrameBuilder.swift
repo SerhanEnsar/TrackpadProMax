@@ -1,21 +1,29 @@
 @testable import TrackpadCore
 
-/// Builds synthetic frame sequences at 100 Hz.
+/// Builds synthetic input sequences at 100 Hz.
 struct FrameBuilder {
-    private(set) var frames: [TouchFrame] = []
+    enum Step {
+        case frame(TouchFrame)
+        /// The system reported a physical click.
+        case click
+    }
+
+    private(set) var steps: [Step] = []
     private(set) var time: Double = 0
 
     mutating func hold(_ touches: [Touch], for duration: Double) {
-        let steps = max(1, Int(duration * 100))
-        for _ in 0..<steps {
+        let count = max(1, Int(duration * 100))
+        for _ in 0..<count {
             time += 0.01
-            frames.append(TouchFrame(timestamp: time, touches: touches))
+            steps.append(.frame(TouchFrame(timestamp: time, touches: touches)))
         }
     }
 
+    mutating func click() { steps.append(.click) }
+
     mutating func lift() {
         time += 0.01
-        frames.append(TouchFrame(timestamp: time, touches: []))
+        steps.append(.frame(TouchFrame(timestamp: time, touches: [])))
     }
 
     mutating func idle(_ duration: Double) { time += duration }
@@ -29,7 +37,14 @@ struct FrameBuilder {
     }
 }
 
-func recognize(_ frames: [TouchFrame], settings: GestureSettings = GestureSettings()) -> [Trigger] {
+func recognize(_ steps: [FrameBuilder.Step], settings: GestureSettings = GestureSettings()) -> [Trigger] {
     var recognizer = GestureRecognizer(settings: settings)
-    return frames.flatMap { recognizer.process($0) }.map(\.trigger)
+    return steps.flatMap { step -> [GestureEvent] in
+        switch step {
+        case let .frame(frame): return recognizer.process(frame)
+        case .click:
+            recognizer.registerPhysicalClick()
+            return []
+        }
+    }.map(\.trigger)
 }

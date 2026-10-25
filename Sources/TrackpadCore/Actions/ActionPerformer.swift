@@ -23,6 +23,9 @@ public final class ActionPerformer {
     }
 
     public func perform(_ action: Action) {
+        if !Self.hasAccessibilityPermission {
+            Log.action.error("No Accessibility permission; synthesized input will be dropped")
+        }
         switch action {
         case let .keyboardShortcut(combo):
             postKey(combo)
@@ -71,12 +74,11 @@ public final class ActionPerformer {
     // MARK: - System
 
     private func perform(_ action: SystemAction) {
-        let missionControl = "/System/Applications/Mission Control.app/Contents/MacOS/Mission Control"
         switch action {
-        case .missionControl: run(missionControl, [])
-        case .showDesktop: run(missionControl, ["1"])
-        case .appWindows: run(missionControl, ["2"])
-        case .screenshot: run("/usr/bin/open", ["-b", "com.apple.screenshot.launcher"])
+        case .missionControl: Dock.send("com.apple.expose.awake")
+        case .showDesktop: Dock.send("com.apple.showdesktop.awake")
+        case .appWindows: Dock.send("com.apple.expose.front.awake")
+        case .screenshot: openApp(bundleID: "com.apple.screenshot.launcher")
         case .lockScreen: postKey(KeyCombo(keyCode: 12, modifiers: CGEventFlags([.maskControl, .maskCommand]).rawValue))
         case .playPause: postAuxKey(16)
         case .nextTrack: postAuxKey(17)
@@ -105,11 +107,23 @@ public final class ActionPerformer {
 
     // MARK: - Helpers
 
+    private func openApp(bundleID: String) {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            Log.action.error("App \(bundleID, privacy: .public) not found")
+            return
+        }
+        NSWorkspace.shared.openApplication(at: url, configuration: .init())
+    }
+
     private func run(_ path: String, _ arguments: [String]) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
-        try? process.run()
+        do {
+            try process.run()
+        } catch {
+            Log.action.error("Failed to run \(path, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func runAppleScript(_ source: String) {
@@ -117,5 +131,26 @@ public final class ActionPerformer {
             var error: NSDictionary?
             NSAppleScript(source: source)?.executeAndReturnError(&error)
         }
+    }
+}
+
+/// Mission Control, App Exposé and Show Desktop via the Dock's private
+/// notification API. macOS kills the Mission Control binary when launched
+/// directly, so this is the reliable route.
+private enum Dock {
+    private typealias SendNotification = @convention(c) (CFString, Int32) -> Int32
+
+    private static let sendNotification: SendNotification? = {
+        let path = "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+        guard let handle = dlopen(path, RTLD_NOW), let symbol = dlsym(handle, "CoreDockSendNotification") else { return nil }
+        return unsafeBitCast(symbol, to: SendNotification.self)
+    }()
+
+    static func send(_ notification: String) {
+        guard let sendNotification else {
+            Log.action.error("CoreDockSendNotification unavailable")
+            return
+        }
+        _ = sendNotification(notification as CFString, 0)
     }
 }

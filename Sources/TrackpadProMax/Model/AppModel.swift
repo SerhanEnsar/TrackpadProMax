@@ -29,6 +29,7 @@ final class AppModel {
     @ObservationIgnored private var hotKey: HotKey?
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var permissionTimer: Timer?
+    @ObservationIgnored private var clickMonitors: [Any] = []
     @ObservationIgnored private let modeHUD = ModeHUD()
 
     init() {
@@ -53,6 +54,7 @@ final class AppModel {
         })
 
         registerHotKey()
+        monitorPhysicalClicks()
         pipeline.start()
         watchAccessibilityPermission()
     }
@@ -114,6 +116,22 @@ final class AppModel {
             saveError = nil
         } catch {
             saveError = error.localizedDescription
+        }
+    }
+
+    /// Mouse-down events tell the recognizer when the trackpad really clicked.
+    /// Global monitors see other apps' events, the local one sees ours.
+    private func monitorPhysicalClicks() {
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
+        let pipeline = pipeline!
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { _ in pipeline.registerPhysicalClick() }) {
+            clickMonitors.append(global)
+        }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { event in
+            pipeline.registerPhysicalClick()
+            return event
+        }) {
+            clickMonitors.append(local)
         }
     }
 

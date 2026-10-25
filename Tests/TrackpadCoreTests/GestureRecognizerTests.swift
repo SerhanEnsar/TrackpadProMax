@@ -7,14 +7,14 @@ import Testing
         var b = FrameBuilder()
         b.hold(FrameBuilder.fingers(fingers), for: 0.1)
         b.lift()
-        #expect(recognize(b.frames) == [.tap(fingers: fingers, count: 1, zone: .center)])
+        #expect(recognize(b.steps) == [.tap(fingers: fingers, count: 1, zone: .center)])
     }
 
     @Test func longTouchIsNotTap() {
         var b = FrameBuilder()
         b.hold(FrameBuilder.fingers(1), for: 0.5)
         b.lift()
-        #expect(recognize(b.frames).isEmpty)
+        #expect(recognize(b.steps).isEmpty)
     }
 
     @Test func movingTouchIsNotTap() {
@@ -22,7 +22,7 @@ import Testing
         b.hold([FrameBuilder.finger(0, x: 0.4)], for: 0.05)
         b.hold([FrameBuilder.finger(0, x: 0.5)], for: 0.05)
         b.lift()
-        #expect(recognize(b.frames).isEmpty)
+        #expect(recognize(b.steps).isEmpty)
     }
 
     @Test func secondQuickTapIsDoubleTap() {
@@ -32,7 +32,7 @@ import Testing
         b.idle(0.1)
         b.hold(FrameBuilder.fingers(2), for: 0.08)
         b.lift()
-        #expect(recognize(b.frames) == [
+        #expect(recognize(b.steps) == [
             .tap(fingers: 2, count: 1, zone: .center),
             .tap(fingers: 2, count: 2, zone: .center),
         ])
@@ -45,7 +45,7 @@ import Testing
         b.idle(0.6)
         b.hold(FrameBuilder.fingers(1), for: 0.08)
         b.lift()
-        #expect(recognize(b.frames) == [
+        #expect(recognize(b.steps) == [
             .tap(fingers: 1, count: 1, zone: .center),
             .tap(fingers: 1, count: 1, zone: .center),
         ])
@@ -55,7 +55,7 @@ import Testing
         var b = FrameBuilder()
         b.hold([FrameBuilder.finger(0, x: 0.95, y: 0.95)], for: 0.08)
         b.lift()
-        #expect(recognize(b.frames) == [.tap(fingers: 1, count: 1, zone: .topRight)])
+        #expect(recognize(b.steps) == [.tap(fingers: 1, count: 1, zone: .topRight)])
     }
 }
 
@@ -64,62 +64,81 @@ import Testing
 
     @Test func hardPressFiresImmediatelyOnce() {
         var b = FrameBuilder()
-        b.hold(FrameBuilder.fingers(1, pressure: 100), for: 0.05)
-        b.hold(FrameBuilder.fingers(1, pressure: 300), for: 0.05)
-        b.hold(FrameBuilder.fingers(1, pressure: 500), for: 0.2)
+        b.hold(FrameBuilder.fingers(1, pressure: 200), for: 0.05)
+        b.click()
+        b.hold(FrameBuilder.fingers(1, pressure: 500), for: 0.05)
+        b.hold(FrameBuilder.fingers(1, pressure: 900), for: 0.2)
         b.hold(FrameBuilder.fingers(1, pressure: 100), for: 0.05)
         b.lift()
-        #expect(recognize(b.frames) == [.press(tier: .hard, fingers: 1, zone: .center)])
+        #expect(recognize(b.steps) == [.press(tier: .hard, fingers: 1, zone: .center)])
     }
 
     @Test func mediumPressFiresWhenForceDropsOff() {
         var b = FrameBuilder()
-        b.hold(FrameBuilder.fingers(1, pressure: 300), for: 0.2)
-        let beforeRelease = recognize(b.frames)
+        b.hold(FrameBuilder.fingers(1, pressure: 500), for: 0.2)
+        let beforeRelease = recognize(b.steps)
         b.hold(FrameBuilder.fingers(1, pressure: 20), for: 0.05)
         b.lift()
         #expect(beforeRelease.isEmpty)
-        #expect(recognize(b.frames) == [.press(tier: .medium, fingers: 1, zone: .center)])
+        #expect(recognize(b.steps) == [.press(tier: .medium, fingers: 1, zone: .center)])
     }
 
-    @Test func lightPressFiresOnLift() {
+    @Test func lightPressNeedsPhysicalClick() {
         var b = FrameBuilder()
-        b.hold(FrameBuilder.fingers(2, pressure: 100), for: 0.1)
+        b.hold(FrameBuilder.fingers(1, pressure: 200), for: 0.05)
+        b.click()
+        b.hold(FrameBuilder.fingers(1, pressure: 200), for: 0.05)
         b.lift()
-        #expect(recognize(b.frames) == [.press(tier: .light, fingers: 2, zone: .center)])
+        #expect(recognize(b.steps) == [.press(tier: .light, fingers: 1, zone: .center)])
+    }
+
+    @Test func firmTapWithoutClickIsTapNotPress() {
+        // Three-finger taps measured up to ~140 per finger on real hardware.
+        var b = FrameBuilder()
+        b.hold(FrameBuilder.fingers(3, pressure: 140), for: 0.08)
+        b.lift()
+        #expect(recognize(b.steps) == [.tap(fingers: 3, count: 1, zone: .center)])
+    }
+
+    @Test func clickIsNotTap() {
+        var b = FrameBuilder()
+        b.hold(FrameBuilder.fingers(1, pressure: 60), for: 0.05)
+        b.click()
+        b.lift()
+        #expect(recognize(b.steps).isEmpty)
     }
 
     @Test func repeatedPressesInOneSession() {
         var b = FrameBuilder()
         for _ in 0..<2 {
-            b.hold(FrameBuilder.fingers(1, pressure: 500), for: 0.1)
+            b.hold(FrameBuilder.fingers(1, pressure: 900), for: 0.1)
             b.hold(FrameBuilder.fingers(1, pressure: 5), for: 0.1)
         }
         b.lift()
-        #expect(recognize(b.frames) == Array(repeating: .press(tier: .hard, fingers: 1, zone: .center), count: 2))
+        #expect(recognize(b.steps) == Array(repeating: .press(tier: .hard, fingers: 1, zone: .center), count: 2))
     }
 
     @Test func pressSuppressesTap() {
         var b = FrameBuilder()
-        b.hold(FrameBuilder.fingers(1, pressure: 500), for: 0.05)
+        b.hold(FrameBuilder.fingers(1, pressure: 900), for: 0.05)
         b.lift()
-        #expect(recognize(b.frames) == [.press(tier: .hard, fingers: 1, zone: .center)])
+        #expect(recognize(b.steps) == [.press(tier: .hard, fingers: 1, zone: .center)])
     }
 
     @Test func dragWithForceIsNotPress() {
         var b = FrameBuilder()
         for step in 0..<20 {
-            b.hold([FrameBuilder.finger(0, x: 0.3 + Double(step) * 0.02, pressure: 300)], for: 0.01)
+            b.hold([FrameBuilder.finger(0, x: 0.3 + Double(step) * 0.02, pressure: 500)], for: 0.01)
         }
         b.lift()
-        #expect(recognize(b.frames).isEmpty)
+        #expect(recognize(b.steps).isEmpty)
     }
 
     @Test func pressInEdgeZone() {
         var b = FrameBuilder()
-        b.hold([FrameBuilder.finger(0, x: 0.05, y: 0.5, pressure: 500)], for: 0.05)
+        b.hold([FrameBuilder.finger(0, x: 0.05, y: 0.5, pressure: 900)], for: 0.05)
         b.lift()
-        #expect(recognize(b.frames) == [.press(tier: .hard, fingers: 1, zone: .leftEdge)])
+        #expect(recognize(b.steps) == [.press(tier: .hard, fingers: 1, zone: .leftEdge)])
     }
 }
 
