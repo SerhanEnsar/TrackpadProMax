@@ -76,6 +76,7 @@ final class ClickGate {
     /// The real mouse-up then passes through untouched.
     func releaseHeldClick() {
         guard case .holding = state else { return }
+        Log.action.notice("Held click released: eased off or held steady")
         release(then: nil)
     }
 
@@ -108,6 +109,7 @@ final class ClickGate {
             state = .idle
             guard shouldHold(), let copy = event.copy() else { return event }
             state = .holding(down: copy)
+            Log.action.notice("Click held")
             onHold()
             return nil
 
@@ -115,6 +117,7 @@ final class ClickGate {
             switch state {
             case .holding:
                 // Re-post the drag after the held down so they arrive in order.
+                Log.action.notice("Held click released: drag")
                 release(then: event)
                 return nil
             case .consumed:
@@ -128,6 +131,7 @@ final class ClickGate {
             state = .idle
             switch current {
             case .holding:
+                Log.action.notice("Held click released: click ended")
                 release(then: event)
                 return nil
             case .consumed:
