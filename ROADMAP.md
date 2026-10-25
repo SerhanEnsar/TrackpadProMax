@@ -24,7 +24,9 @@ When you switch to an app that has gestures, a small notification-style card wit
 - [x] Surface modes: on-screen trackpad with edge bars (volume, brightness, keyboard backlight, tracks, scrubbing)
 - [x] Music surface with now-playing info
 - [x] Output-device bars: hard-press the volume bar, pick a device, set its volume, switch output
-- [ ] More surfaces (numpad, app-specific panels)
+- [x] Two-level mode wheel (Normal folder with gesture modes)
+- [x] Tools: window tiling, app launcher, timer knob, quick settings
+- [ ] More surfaces (numpad, app-specific panels, clipboard history)
 
 ## v0.3 — Continuous pressure controls
 - Pressure-sensitive scroll and zoom speed
@@ -32,7 +34,6 @@ When you switch to an app that has gestures, a small notification-style card wit
 
 ## v0.4 — Haptic notifications
 - Haptic alerts for notifications, calendar events and low battery
-- Pomodoro / timer that you feel instead of hear
 - Accessibility haptics: feel buttons and window edges under the cursor (opt-in)
 
 ## Later

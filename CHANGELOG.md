@@ -10,6 +10,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Multi-finger touches no longer trigger surface bars or the middle play/pause tap.
 
 ### Added
+- Two-level mode wheel: Normal is a folder that opens a wheel of gesture modes; its middle goes back.
+- Window tiling tool: pick a 2/3/4 split, drag the dividers, two-finger tap to confirm, drag apps from the left edge onto panes.
+- App launcher tool: favourite apps (Dock apps by default) on a wheel.
+- Timer knob tool: circle to set minutes, tap to start; menu bar countdown and a haptic alarm.
+- Quick settings tool: Dark Mode, Night Shift, Keep Awake, Wi-Fi, Bluetooth, Mute, Mic Off, Lock Screen.
 - Output devices on the trackpad: hard-press the volume bar of a surface and your outputs (AirPods, Bluetooth speakers, built-in…) grow into bars. Slide sideways to pick one, up/down for its volume, press hard to route sound there, tap to go back.
 - A four-finger tap (single or double) closes any surface or the mode wheel and goes back to Normal, like Esc.
 - Each surface chooses what a tap in the middle does: Now Playing (play/pause) or Back (close). Control and Media default to Back; Media keeps showing the playing track.
