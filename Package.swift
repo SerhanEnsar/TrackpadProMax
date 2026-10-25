@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TrackpadProMax",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "TrackpadProMax", targets: ["TrackpadProMax"]),
         .library(name: "TrackpadCore", targets: ["TrackpadCore"]),

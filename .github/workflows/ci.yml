@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Swift version
+        run: swift --version
+      - name: Test
+        run: swift test
+      - name: Build app bundle
+        run: scripts/build-app.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrackpadProMax-${{ github.sha }}
+          path: dist/*.zip
+          retention-days: 14
