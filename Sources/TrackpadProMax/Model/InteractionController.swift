@@ -48,6 +48,7 @@ final class InteractionController {
         input.onDevices = { [weak self] events in self?.handleDevices(events) }
         input.onTiling = { [weak self] events in self?.handleTiling(events) }
         input.onLauncher = { [weak self] events, knob in self?.handleLauncher(events, knob: knob) }
+        input.onTimer = { [weak self] events in self?.handleTimer(events) }
         pipeline.setFrameTap { [input] frame in input.process(frame) }
     }
 
@@ -175,6 +176,8 @@ final class InteractionController {
             startTiling()
         case .appLauncher:
             startLauncher()
+        case .timer:
+            startTimerTool()
         default:
             Log.action.notice("Tool \(tool.rawValue, privacy: .public) is not available yet")
             toolMode = nil
@@ -188,11 +191,66 @@ final class InteractionController {
         state.tiling = nil
         tilingPanel.hide()
         launcherPanel.hide()
+        timerPanel.hide()
+        timerRefresh?.invalidate()
+        timerRefresh = nil
         if !isWheelOpen, surfaceMode == nil {
             input.install(.none, waitForLift: false)
             inputLock.release()
             idleTimer?.invalidate()
         }
+    }
+
+    // MARK: Timer
+
+    /// Seconds left on the running timer, if any; owned by the app model.
+    var timerRemaining: () -> TimeInterval? = { nil }
+    var onStartTimer: (Int) -> Void = { _ in }
+    var onCancelTimer: () -> Void = {}
+    private var lastTimerMinutes = 25
+    private var timerRefresh: Timer?
+    private let timerPanel = OverlayPanel<TimerKnobView>(size: NSSize(
+        width: TimerKnobView.diameter + 80, height: TimerKnobView.diameter + 80
+    ))
+
+    private func startTimerTool() {
+        state.timerMinutes = lastTimerMinutes
+        state.timerRemaining = timerRemaining()
+        input.install(.timer(TimerKnob(minutes: lastTimerMinutes)), waitForLift: !touchesAreUp)
+        inputLock.engage()
+        timerPanel.show(TimerKnobView(state: state))
+        timerRefresh = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self.map { $0.state.timerRemaining = $0.timerRemaining() } }
+        }
+        restartIdleTimer()
+    }
+
+    private func handleTimer(_ events: [TimerKnob.Event]) {
+        guard toolMode?.tool == .timer else { return }
+        for event in events {
+            switch event {
+            case let .minutes(minutes):
+                state.timerMinutes = minutes
+                HapticEngine.shared.play(minutes % 5 == 0 ? .medium : .tick)
+            case let .start(minutes):
+                if state.timerRemaining != nil {
+                    onCancelTimer()
+                    state.timerRemaining = nil
+                    HapticEngine.shared.play([.weak, .weak])
+                } else if minutes > 0 {
+                    lastTimerMinutes = minutes
+                    onStartTimer(minutes)
+                    HapticEngine.shared.play(.heavyClick)
+                    onSurfaceIdle()
+                    return
+                }
+            case .back:
+                HapticEngine.shared.play(.weak)
+                onBackToWheel()
+                return
+            }
+        }
+        restartIdleTimer()
     }
 
     // MARK: App launcher
@@ -606,6 +664,7 @@ private final class OverlayInput: @unchecked Sendable {
         case devices(DevicePicker)
         case tiling(TilingFlow)
         case launcher(RadialSelector)
+        case timer(TimerKnob)
     }
 
     // Set once on the main actor before frames flow; only called on the main actor.
@@ -615,6 +674,7 @@ private final class OverlayInput: @unchecked Sendable {
     var onDevices: @MainActor @Sendable ([DevicePicker.Event]) -> Void = { _ in }
     var onTiling: @MainActor @Sendable ([TilingFlow.Event]) -> Void = { _ in }
     var onLauncher: @MainActor @Sendable ([RadialSelector.Event], Point) -> Void = { _, _ in }
+    var onTimer: @MainActor @Sendable ([TimerKnob.Event]) -> Void = { _ in }
 
     private let lock = NSLock()
     private var kind = Kind.none
@@ -657,6 +717,17 @@ private final class OverlayInput: @unchecked Sendable {
             if !events.isEmpty || moved {
                 let callback = onWheel
                 Task { @MainActor in callback(events, knob) }
+            }
+        case var .timer(knob):
+            let events = knob.process(frame)
+            kind = .timer(knob)
+            lock.unlock()
+            if !events.isEmpty {
+                let callback = onTimer
+                Task { @MainActor in callback(events) }
+            } else if ping {
+                let callback = onActivity
+                Task { @MainActor in callback() }
             }
         case var .launcher(selector):
             let events = selector.process(frame)
