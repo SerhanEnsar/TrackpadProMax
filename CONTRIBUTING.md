@@ -14,7 +14,7 @@ scripts/build-app.sh debug     # build dist/TrackpadProMax.app
 - `Sources/TrackpadProMax` holds the SwiftUI menu bar app.
 - Every private API goes through `MultitouchBridge` and must degrade gracefully if a symbol is missing.
 
-Rebuilt ad-hoc-signed apps get a new code signature, so macOS may ask for Accessibility permission again. Remove the old entry in *System Settings › Privacy & Security › Accessibility* and add it again.
+macOS ties the Accessibility permission to the app's code signature. Ad-hoc signatures change on every build, which silently revokes the permission. Run `scripts/create-signing-identity.sh` once to create a local self-signed certificate, and `build-app.sh` will use it, so the permission survives rebuilds.
 
 ## Pull requests
 - One topic per PR, with tests for logic changes.

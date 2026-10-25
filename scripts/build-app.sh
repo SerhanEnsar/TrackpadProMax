@@ -4,7 +4,9 @@
 #   scripts/build-app.sh            release build
 #   scripts/build-app.sh debug      debug build
 #
-# Signs ad hoc unless SIGN_IDENTITY is set (e.g. "Developer ID Application: …").
+# Signing: SIGN_IDENTITY if set (e.g. "Developer ID Application: …"), else the
+# local identity from create-signing-identity.sh if present, else ad hoc.
+# Ad-hoc builds lose the Accessibility permission on every rebuild.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -30,7 +32,16 @@ cp "$BIN" "$APP/Contents/MacOS/TrackpadProMax"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Resources/Info.plist > "$APP/Contents/Info.plist"
 [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
-codesign --force --options runtime --timestamp=none --sign "${SIGN_IDENTITY:--}" "$APP"
+if [ -z "${SIGN_IDENTITY:-}" ]; then
+    LOCAL="TrackpadProMax Local Signing"
+    if security find-identity -p codesigning 2>/dev/null | grep -q "$LOCAL"; then
+        SIGN_IDENTITY="$LOCAL"
+    else
+        SIGN_IDENTITY="-"
+        echo "warning: signing ad hoc; run scripts/create-signing-identity.sh to keep permissions across rebuilds" >&2
+    fi
+fi
+codesign --force --options runtime --timestamp=none --sign "$SIGN_IDENTITY" "$APP"
 codesign --verify --strict "$APP"
 
 (cd dist && rm -f "TrackpadProMax-$VERSION.zip" && ditto -c -k --keepParent TrackpadProMax.app "TrackpadProMax-$VERSION.zip")
