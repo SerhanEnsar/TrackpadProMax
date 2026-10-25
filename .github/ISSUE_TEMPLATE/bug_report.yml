@@ -1,0 +1,37 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: mac
+    attributes:
+      label: Mac model
+      placeholder: "MacBook Air M4 13\" / Magic Trackpad 2"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "15.5"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: TrackpadProMax version
+      description: Shown in Settings › About
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Visualizer data (optional)
+      description: Force values or a screenshot of the Pressure Visualizer during the gesture.

@@ -1,0 +1,35 @@
+# Roadmap
+
+TrackpadProMax ships **few features, but solid ones**. Each release is tested on real hardware before it is published.
+
+## v0.1 — Foundation
+- [x] Multitouch stream (per-finger position, force, size, velocity)
+- [x] Haptic engine (direct actuator + system fallback)
+- [x] Pressure visualizer
+- [x] Gesture recognizer: 1–4 finger taps / double taps, light / medium / hard presses, corner & edge zones
+- [x] Actions: shortcuts, clicks, media & system keys, apps, URLs, Shortcuts, AppleScript
+- [x] Modes + per-app profiles, global mode-switch hotkey with HUD
+- [x] Settings UI
+- [ ] Validation on more MacBook / Magic Trackpad models
+
+## v0.2 — Gesture Discovery HUD
+When you switch to an app that has gestures, a small notification-style card with a trackpad icon lists them. Hover a row and a minimal trackpad animation plays the gesture (fingers, taps, press rings), so you can learn what each app supports without opening settings.
+- Auto-dismiss, "don't show again for this app", hotkey to show it on demand
+
+## v0.3 — Continuous pressure controls
+- Pressure slider: volume / brightness follow force while a zone or modifier is held, with a haptic tick per step
+- Pressure-sensitive scroll and zoom speed
+- Scroll detents, a "notched wheel" feel when scrolling
+
+## v0.4 — Haptic notifications
+- Haptic alerts for notifications, calendar events and low battery
+- Pomodoro / timer that you feel instead of hear
+- Accessibility haptics: feel buttons and window edges under the cursor (opt-in)
+
+## Later
+- Suppress the native click / Force Click for bound gestures (event tap)
+- Swipe + force combinations, custom haptic waveforms
+- Digital scale mode, drawing-tablet (pressure → pen) mode
+- Homebrew cask, notarized builds, localization (Turkish first)
+
+Ideas welcome in [Discussions](https://github.com/SerhanEnsar/TrackpadProMax/discussions).

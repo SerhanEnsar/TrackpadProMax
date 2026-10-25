@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "TrackpadProMax: pressure-sensitive gestures and haptic feedback for the macOS Force Touch trackpad"
+abstract: >-
+  TrackpadProMax is an open-source macOS application that exposes the raw
+  multitouch and force data of Apple Force Touch trackpads and maps
+  pressure tiers, multi-finger taps and surface zones to user-defined actions,
+  with programmable Taptic Engine haptic feedback.
+authors:
+  - family-names: "Ensar"
+    given-names: "Serhan"
+repository-code: "https://github.com/SerhanEnsar/TrackpadProMax"
+license: Apache-2.0
+keywords:
+  - macOS
+  - Force Touch
+  - trackpad
+  - haptic feedback
+  - Taptic Engine
+  - multitouch
+  - pressure-sensitive input
+  - gesture recognition
+  - human-computer interaction
+type: software

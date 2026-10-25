@@ -17,6 +17,7 @@ struct SettingsView: View {
 
 private struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
+    @State private var confirmingReset = false
 
     var body: some View {
         @Bindable var model = model
@@ -59,10 +60,15 @@ private struct GeneralSettings: View {
                         NSWorkspace.shared.activateFileViewerSelecting([model.store.url])
                     }
                 }
-                Button("Reset all settings to defaults…", role: .destructive) { model.resetToDefaults() }
+                Button("Reset all settings to defaults…", role: .destructive) { confirmingReset = true }
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog("Reset all settings?", isPresented: $confirmingReset) {
+            Button("Reset", role: .destructive) { model.resetToDefaults() }
+        } message: {
+            Text("All modes, gestures and sensitivity settings will be replaced with the defaults.")
+        }
     }
 }
 
