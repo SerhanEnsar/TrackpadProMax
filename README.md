@@ -32,9 +32,10 @@ Every MacBook since 2015 has a **Force Touch trackpad**. It measures how hard ea
 | **Per-app profiles** | Gestures that only apply in Safari, Final Cut, Figma… |
 | **Haptic feedback** | Direct Taptic Engine control: confirm each gesture with a tick or a heavy click. |
 | **Actions** | Keyboard shortcuts, right/middle click, media and brightness keys, Mission Control, Show Desktop, screenshot, lock screen, open apps or URLs, run **Shortcuts** and **AppleScript**. |
+| **Gesture Discovery HUD** | Open an app and a small card lists its trackpad gestures. Hover one to watch it played on an animated trackpad. Press `⌃⌥⌘G` to show it any time. |
 | **Pressure visualizer** | Live map of every finger with its force, size and angle. Use it to calibrate your thresholds. |
 
-See the [roadmap](ROADMAP.md) for what's coming, such as the per-app **Gesture Discovery HUD**, pressure sliders for volume and brightness, scroll detents, and haptic notifications.
+See the [roadmap](ROADMAP.md) for what's coming, such as pressure sliders for volume and brightness, scroll detents, and haptic notifications.
 
 ## Installation
 

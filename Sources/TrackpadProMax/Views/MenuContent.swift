@@ -92,9 +92,16 @@ private struct ActiveBindingsList: View {
         let bundleID = model.frontmostApp?.bundleIdentifier
         let bindings = model.activeMode.effectiveBindings(for: bundleID)
         VStack(alignment: .leading, spacing: 4) {
-            Text(model.frontmostApp?.localizedName.map { "Gestures in \($0)" } ?? "Gestures")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text(model.frontmostApp?.localizedName.map { "Gestures in \($0)" } ?? "Gestures")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Show card", systemImage: "rectangle.on.rectangle") { model.showDiscoveryCard() }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Show the gesture card for this app")
+            }
             if bindings.isEmpty {
                 Text("No gestures in this mode.").font(.callout).foregroundStyle(.secondary)
             }

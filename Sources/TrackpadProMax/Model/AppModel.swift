@@ -27,6 +27,9 @@ final class AppModel {
     @ObservationIgnored private(set) var pipeline: TouchPipeline!
     @ObservationIgnored private var dispatcher: GestureDispatcher!
     @ObservationIgnored private var hotKey: HotKey?
+    @ObservationIgnored private var discoveryHotKey: HotKey?
+    @ObservationIgnored private let discoveryHUD = DiscoveryHUD()
+    @ObservationIgnored private var discoveryPolicy = DiscoveryPolicy()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var permissionTimer: Timer?
     @ObservationIgnored private var clickMonitors: [Any] = []
@@ -80,6 +83,17 @@ final class AppModel {
         announceMode()
     }
 
+    /// Shows the gesture card for the frontmost app, even if it has no gestures.
+    func showDiscoveryCard() {
+        let app = frontmostApp
+        let bindings = activeMode.effectiveBindings(for: app?.bundleIdentifier)
+        presentDiscovery(app: app, bindings: bindings)
+    }
+
+    func unmuteDiscovery(_ bundleID: String) {
+        configuration.discovery.mutedApps.removeAll { $0 == bundleID }
+    }
+
     func requestAccessibility() {
         ActionPerformer.requestAccessibilityPermission()
     }
@@ -114,12 +128,36 @@ final class AppModel {
         guard app?.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
         frontmostApp = app
         dispatcher.frontmostBundleID = app?.bundleIdentifier
+        announceGestures(in: app)
+    }
+
+    /// Shows the discovery card the first time a freshly launched app comes forward.
+    private func announceGestures(in app: NSRunningApplication?) {
+        guard let app, configuration.isEnabled else { return }
+        let running = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
+        discoveryPolicy.prune(keeping: running)
+        guard let bindings = discoveryPolicy.gesturesToAnnounce(
+            bundleID: app.bundleIdentifier, processID: app.processIdentifier,
+            mode: activeMode, settings: configuration.discovery
+        ) else { return }
+        presentDiscovery(app: app, bindings: bindings)
+    }
+
+    private func presentDiscovery(app: NSRunningApplication?, bindings: [GestureBinding]) {
+        let bundleID = app?.bundleIdentifier
+        discoveryHUD.show(
+            app: app, modeName: activeMode.name, bindings: bindings,
+            duration: configuration.discovery.displayDuration,
+            onMute: bundleID.map { id in { [weak self] in self?.configuration.discovery.mutedApps.append(id) } }
+        )
     }
 
     private func configurationChanged(from old: Configuration) {
         dispatcher.configuration = configuration
         if old.gestures != configuration.gestures { pipeline.settings = configuration.gestures }
-        if old.modeHotkey != configuration.modeHotkey { registerHotKey() }
+        if old.modeHotkey != configuration.modeHotkey || old.discovery.hotkey != configuration.discovery.hotkey {
+            registerHotKey()
+        }
         do {
             try store.save(configuration)
             saveError = nil
@@ -185,6 +223,10 @@ final class AppModel {
         hotKey?.unregister()
         hotKey = configuration.modeHotkey.flatMap { combo in
             HotKey(combo) { [weak self] in self?.selectNextMode() }
+        }
+        discoveryHotKey?.unregister()
+        discoveryHotKey = configuration.discovery.hotkey.flatMap { combo in
+            HotKey(combo) { [weak self] in self?.showDiscoveryCard() }
         }
     }
 

@@ -14,7 +14,10 @@ TrackpadProMax ships **few features, but solid ones**. Each release is tested on
 
 ## v0.2 — Gesture Discovery HUD
 When you switch to an app that has gestures, a small notification-style card with a trackpad icon lists them. Hover a row and a minimal trackpad animation plays the gesture (fingers, taps, press rings), so you can learn what each app supports without opening settings.
-- Auto-dismiss, "don't show again for this app", hotkey to show it on demand
+- [x] Card on first activation of a freshly launched app, hotkey to show it on demand (`⌃⌥⌘G`)
+- [x] Animated trackpad preview on hover, also in the gesture editor
+- [x] Auto-dismiss (paused while hovered), "don't show again for this app", scope setting
+- [ ] Polish from real-world use
 
 ## v0.3 — Continuous pressure controls
 - Pressure slider: volume / brightness follow force while a zone or modifier is held, with a haptic tick per step

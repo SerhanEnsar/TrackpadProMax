@@ -72,6 +72,7 @@ public struct Configuration: Sendable, Codable, Equatable {
     /// Short haptic confirmation whenever a binding fires.
     public var hapticOnTrigger = true
     public var triggerHaptic: HapticPattern = .weak
+    public var discovery = DiscoverySettings()
     /// Global hotkey that cycles modes. Default ⌃⌥⌘T.
     public var modeHotkey: KeyCombo? = KeyCombo(
         keyCode: 17, modifiers: CGEventFlags([.maskControl, .maskAlternate, .maskCommand]).rawValue
@@ -97,6 +98,7 @@ public struct Configuration: Sendable, Codable, Equatable {
         gestures = try c.decodeIfPresent(GestureSettings.self, forKey: .gestures) ?? d.gestures
         hapticOnTrigger = try c.decodeIfPresent(Bool.self, forKey: .hapticOnTrigger) ?? d.hapticOnTrigger
         triggerHaptic = try c.decodeIfPresent(HapticPattern.self, forKey: .triggerHaptic) ?? d.triggerHaptic
+        discovery = try c.decodeIfPresent(DiscoverySettings.self, forKey: .discovery) ?? d.discovery
         modeHotkey = c.contains(.modeHotkey) ? try c.decodeIfPresent(KeyCombo.self, forKey: .modeHotkey) : d.modeHotkey
         if !modes.contains(where: { $0.id == activeModeID }) { activeModeID = modes[0].id }
         migrate()

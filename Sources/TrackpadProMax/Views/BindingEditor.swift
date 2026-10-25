@@ -23,6 +23,9 @@ struct BindingEditor: View {
         VStack(spacing: 0) {
             Form {
                 Section("When I…") {
+                    GestureAnimationView(trigger: trigger.make())
+                        .frame(height: 110)
+                        .frame(maxWidth: .infinity)
                     Picker("Gesture", selection: $trigger.kind) {
                         Text("Tap (no click)").tag(TriggerDraft.Kind.tap)
                         Text("Press with force").tag(TriggerDraft.Kind.press)
@@ -72,7 +75,7 @@ struct BindingEditor: View {
             }
             .padding([.horizontal, .bottom], 20)
         }
-        .frame(width: 520, height: 560)
+        .frame(width: 520, height: 680)
     }
 }
 

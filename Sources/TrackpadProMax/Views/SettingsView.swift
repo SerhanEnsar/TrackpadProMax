@@ -38,6 +38,37 @@ private struct GeneralSettings: View {
                     ShortcutRecorder(combo: $model.configuration.modeHotkey)
                 }
             }
+            Section {
+                Toggle("Show gestures when an app opens", isOn: $model.configuration.discovery.isEnabled)
+                Picker("Show for", selection: $model.configuration.discovery.scope) {
+                    ForEach(DiscoverySettings.Scope.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                }
+                .disabled(!model.configuration.discovery.isEnabled)
+                LabeledContent("Stays for") {
+                    Slider(value: $model.configuration.discovery.displayDuration, in: 3...15, step: 1)
+                    Text("\(Int(model.configuration.discovery.displayDuration)) s").monospacedDigit().frame(width: 60)
+                }
+                LabeledContent("Show on demand") {
+                    ShortcutRecorder(combo: $model.configuration.discovery.hotkey)
+                }
+                if !model.configuration.discovery.mutedApps.isEmpty {
+                    LabeledContent("Hidden for") {
+                        VStack(alignment: .trailing) {
+                            ForEach(model.configuration.discovery.mutedApps, id: \.self) { bundleID in
+                                HStack {
+                                    Text(appName(bundleID)).foregroundStyle(.secondary)
+                                    Button("Show again") { model.unmuteDiscovery(bundleID) }
+                                        .controlSize(.small)
+                                }
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Gesture Discovery")
+            } footer: {
+                Text("A small card lists the trackpad gestures of the app you open. Hover a gesture to see it played on a trackpad.")
+            }
             Section("Haptics") {
                 LabeledContent("Engine") {
                     Text(HapticEngine.shared.usesPrivateActuator ? "Direct actuator" : "System feedback (fallback)")
@@ -70,6 +101,11 @@ private struct GeneralSettings: View {
             Text("All modes, gestures and sensitivity settings will be replaced with the defaults.")
         }
     }
+}
+
+private func appName(_ bundleID: String) -> String {
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return bundleID }
+    return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
 }
 
 // MARK: - Sensitivity
