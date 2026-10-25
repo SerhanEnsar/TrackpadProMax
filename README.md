@@ -103,8 +103,8 @@ Magic Trackpad 2 and newer have Force Touch, and the multitouch stream includes 
 **Why does my one-finger tap also click?**
 macOS's *Tap to Click* still runs. Bind 3/4-finger taps or corner zones to avoid overlap, or turn off the system gesture. The gesture editor warns you about known conflicts.
 
-**A hard press also opens Look Up.**
-Turn off *Force Click and haptic feedback › Look up & data detectors* in *System Settings › Trackpad*, or use corner zones.
+**Does a hard press also click the button under the pointer?**
+No. Where a medium or hard press is bound, TrackpadProMax holds the system click back. If the press reaches its level, the click is dropped and only your action runs. If you let go before that, the normal click happens on release. Dragging is never delayed.
 
 ## Contributing
 

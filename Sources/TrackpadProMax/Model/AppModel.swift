@@ -31,6 +31,7 @@ final class AppModel {
     @ObservationIgnored private var permissionTimer: Timer?
     @ObservationIgnored private var clickMonitors: [Any] = []
     @ObservationIgnored private let modeHUD = ModeHUD()
+    @ObservationIgnored private let clickGate = ClickGate()
 
     init() {
         configuration = store.load()
@@ -55,6 +56,9 @@ final class AppModel {
 
         registerHotKey()
         monitorPhysicalClicks()
+        clickGate.onPhysicalClick = { [pipeline] in pipeline?.registerPhysicalClick() }
+        clickGate.shouldHold = { [weak self] in self?.shouldHoldClick() ?? false }
+        if hasAccessibility { clickGate.start() }
         pipeline.start()
         watchAccessibilityPermission()
     }
@@ -87,6 +91,9 @@ final class AppModel {
     private func handle(_ event: GestureEvent) {
         let binding = activeMode.binding(for: event.trigger, bundleID: dispatcher.frontmostBundleID)
         record(event.trigger, action: configuration.isEnabled ? binding?.action.displayName : nil)
+        if configuration.isEnabled, binding != nil, case .press = event.trigger, clickGate.consumeHeldClick() {
+            Log.action.notice("Swallowed the click under \(event.trigger.displayName, privacy: .public)")
+        }
         dispatcher.handle(event)
     }
 
@@ -119,16 +126,39 @@ final class AppModel {
         }
     }
 
+    /// Hold the system click if a medium or hard press is bound for the current
+    /// finger count and position, so the press can replace the click.
+    private func shouldHoldClick() -> Bool {
+        guard configuration.isEnabled else { return false }
+        let touches = pipeline.latestFrame.activeTouches
+        guard !touches.isEmpty else { return false }
+        let center = Point(
+            x: touches.map(\.position.x).reduce(0, +) / Double(touches.count),
+            y: touches.map(\.position.y).reduce(0, +) / Double(touches.count)
+        )
+        let zone = Zone.classify(center, margin: configuration.gestures.zoneMargin)
+        return activeMode.effectiveBindings(for: dispatcher.frontmostBundleID).contains { binding in
+            guard case let .press(tier, fingers, bindingZone) = binding.trigger else { return false }
+            return tier >= .medium && fingers == touches.count && bindingZone.matches(zone)
+        }
+    }
+
     /// Mouse-down events tell the recognizer when the trackpad really clicked.
     /// Global monitors see other apps' events, the local one sees ours.
     private func monitorPhysicalClicks() {
         let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
         let pipeline = pipeline!
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { _ in pipeline.registerPhysicalClick() }) {
+        // Skip clicks the click gate replays; it reports the real ones itself.
+        let isReal = { (event: NSEvent) in
+            event.cgEvent?.getIntegerValueField(.eventSourceUserData) != ClickGate.syntheticMarker
+        }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { event in
+            if isReal(event) { pipeline.registerPhysicalClick() }
+        }) {
             clickMonitors.append(global)
         }
         if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { event in
-            pipeline.registerPhysicalClick()
+            if isReal(event) { pipeline.registerPhysicalClick() }
             return event
         }) {
             clickMonitors.append(local)
@@ -145,6 +175,7 @@ final class AppModel {
     private func refreshAccessibility() {
         hasAccessibility = ActionPerformer.hasAccessibilityPermission
         if hasAccessibility {
+            clickGate.start()
             permissionTimer?.invalidate()
             permissionTimer = nil
         }

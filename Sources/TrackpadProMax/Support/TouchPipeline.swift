@@ -59,7 +59,16 @@ final class TouchPipeline: @unchecked Sendable {
         Task { @MainActor in events.forEach(onGesture) }
     }
 
+    /// `defaults write io.github.serhanensar.TrackpadProMax VerboseTouchLogging -bool YES`
+    private let verbose = UserDefaults.standard.bool(forKey: "VerboseTouchLogging")
+
     private func trackSession(_ frame: TouchFrame) {
+        if verbose, !frame.touches.isEmpty {
+            let text = frame.touches.map {
+                "#\($0.id) s\($0.phase.rawValue) (\(String(format: "%.3f,%.3f", $0.position.x, $0.position.y))) f\(Int($0.pressure))"
+            }.joined(separator: " ")
+            Log.touch.info("\(String(format: "%.3f", frame.timestamp), privacy: .public) \(text, privacy: .public)")
+        }
         sessionStates.formUnion(frame.touches.map(\.phase.rawValue))
         let active = frame.activeTouches
         if active.isEmpty {

@@ -12,3 +12,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Actions: keyboard shortcuts, mouse clicks, media and brightness keys, Mission Control, Show Desktop, screenshot, lock screen, apps, URLs, Shortcuts and AppleScript.
 - Trackpad modes and per-app profiles, switchable with a global hotkey and confirmed by a haptic and an on-screen badge.
 - Menu bar app with a pressure visualizer, gesture editor and sensitivity settings.
+- Click gate: where a medium or hard press is bound, the system click waits. If the press fires, the click is dropped; if you let go earlier, the click goes through on release; dragging works as usual.

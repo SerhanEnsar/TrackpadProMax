@@ -92,6 +92,18 @@ import Testing
         #expect(recognize(b.steps) == [.press(tier: .light, fingers: 1, zone: .center)])
     }
 
+    @Test func oneClickGivesOneLightPress() {
+        var b = FrameBuilder()
+        b.hold(FrameBuilder.fingers(1, pressure: 200), for: 0.05)
+        b.click()
+        for _ in 0..<5 {
+            b.hold(FrameBuilder.fingers(1, pressure: 10), for: 0.05)
+            b.hold(FrameBuilder.fingers(1, pressure: 200), for: 0.05)
+        }
+        b.lift()
+        #expect(recognize(b.steps) == [.press(tier: .light, fingers: 1, zone: .center)])
+    }
+
     @Test func firmTapWithoutClickIsTapNotPress() {
         // Three-finger taps measured up to ~140 per finger on real hardware.
         var b = FrameBuilder()

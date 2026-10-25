@@ -173,6 +173,9 @@ public struct GestureRecognizer: Sendable {
         s.pressFired = true
         s.pendingTier = nil
         s.armed = false
+        // Each light press needs its own click; otherwise every later force
+        // wobble in the same session would count as another press.
+        s.clicked = false
         let zone = Zone.classify(s.pendingLocation, margin: settings.zoneMargin)
         return GestureEvent(
             trigger: .press(tier: tier, fingers: s.pendingFingers, zone: zone),
