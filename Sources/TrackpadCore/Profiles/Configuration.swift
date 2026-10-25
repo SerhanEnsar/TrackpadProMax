@@ -81,7 +81,7 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
 /// Everything the user can configure. Persisted as JSON.
 public struct Configuration: Sendable, Codable, Equatable {
     /// Bumped when stored values need migrating. See `migrate()`.
-    public static let currentSchemaVersion = 3
+    public static let currentSchemaVersion = 4
 
     public var schemaVersion = Configuration.currentSchemaVersion
     public var isEnabled = true
@@ -149,6 +149,12 @@ public struct Configuration: Sendable, Codable, Equatable {
                 modes[index].surface = .music
                 modes[index].bindings = []
                 modes[index].appProfiles = []
+            }
+        }
+        if schemaVersion < 4 {
+            // The middle of the Media surface goes back, like Control.
+            for index in modes.indices where modes[index].name == "Media" && modes[index].surface?.center == .nowPlaying {
+                modes[index].surface?.center = .back
             }
         }
         schemaVersion = Self.currentSchemaVersion

@@ -107,7 +107,8 @@ private func line(from a: Point, to b: Point, steps: Int = 30) -> [Point] {
     }
 
     @Test func onlyMusicLayoutNeedsNowPlaying() {
-        #expect(ControlSurfaceLayout.music.isMusic)
+        #expect(ControlSurfaceLayout.music.isMusic, "scrub bar needs Now Playing")
+        #expect(ControlSurfaceLayout.music.center == .back)
         #expect(!ControlSurfaceLayout().isMusic, "Control: tracks bar, but the middle is Back")
         #expect(ControlSurfaceLayout().center == .back)
     }

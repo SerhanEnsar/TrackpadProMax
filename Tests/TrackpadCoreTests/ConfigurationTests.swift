@@ -123,4 +123,13 @@ import Testing
         #expect(Configuration.defaults.gestureModes.map(\.name) == ["Normal"])
         #expect(Configuration.defaults.modes.map(\.name) == ["Normal", "Media", "Control"])
     }
+
+    @Test func v3MediaMiddleBecomesBack() throws {
+        var old = Configuration.defaults
+        let index = old.modes.firstIndex { $0.name == "Media" }!
+        old.modes[index].surface?.center = .nowPlaying
+        old.schemaVersion = 3
+        let config = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(old))
+        #expect(config.modes[index].surface?.center == .back)
+    }
 }

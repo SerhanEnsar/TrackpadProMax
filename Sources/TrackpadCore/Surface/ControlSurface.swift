@@ -86,10 +86,14 @@ public struct ControlSurfaceLayout: Sendable, Codable, Hashable {
     }
 
     /// Music-focused layout used by the default Media mode.
-    public static let music = ControlSurfaceLayout(left: .none, right: .volume, top: .media, bottom: .seek, center: .nowPlaying)
+    /// Play/pause lives on the top bar's tap; the middle goes back.
+    public static let music = ControlSurfaceLayout(left: .none, right: .volume, top: .media, bottom: .seek, center: .back)
 
     /// Needs Now Playing info: shows the track in the middle or scrubs it.
     public var isMusic: Bool { center == .nowPlaying || SurfaceEdge.allCases.contains { self[$0] == .seek } }
+
+    /// Shows the playing track in the middle (whatever a tap there does).
+    public var showsNowPlaying: Bool { isMusic }
 
     public subscript(edge: SurfaceEdge) -> SurfaceControl {
         get {

@@ -23,7 +23,11 @@ struct ControlSurfaceView: View {
                 Group {
                     switch state.surfaceLayout.center {
                     case .nowPlaying:
-                        NowPlayingCard(track: state.nowPlaying, modeName: state.surfaceName)
+                        NowPlayingCard(track: state.nowPlaying, modeName: state.surfaceName,
+                                       hint: "Tap the middle to play/pause")
+                    case .back where state.surfaceLayout.showsNowPlaying:
+                        NowPlayingCard(track: state.nowPlaying, modeName: state.surfaceName,
+                                       hint: "Tap the middle to go back")
                     case .back:
                         VStack(spacing: 6) {
                             Image(systemName: "chevron.backward.circle.fill")
@@ -153,6 +157,7 @@ struct ControlSurfaceView: View {
 private struct NowPlayingCard: View {
     let track: NowPlaying?
     let modeName: String
+    let hint: String
 
     var body: some View {
         HStack(spacing: 14) {
@@ -174,7 +179,7 @@ private struct NowPlayingCard: View {
                     Text(modeName).font(.headline)
                     Text("Nothing playing").font(.subheadline).foregroundStyle(.secondary)
                 }
-                Text("Tap the middle to play/pause")
+                Label(hint, systemImage: hint.contains("back") ? "chevron.backward.circle" : "playpause")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }

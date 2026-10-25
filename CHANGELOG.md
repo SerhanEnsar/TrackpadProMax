@@ -12,7 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 - Output devices on the trackpad: hard-press the volume bar of a surface and your outputs (AirPods, Bluetooth speakers, built-in…) grow into bars. Slide sideways to pick one, up/down for its volume, press hard to route sound there, tap to go back.
 - A four-finger tap (single or double) closes any surface or the mode wheel and goes back to Normal, like Esc.
-- Each surface chooses what a tap in the middle does: Now Playing (play/pause) or Back (close). Control defaults to Back.
+- Each surface chooses what a tap in the middle does: Now Playing (play/pause) or Back (close). Control and Media default to Back; Media keeps showing the playing track.
 - Mode wheel: four-finger double tap opens a radial wheel; slide to pick a mode with haptic ticks, tap to switch, tap in the middle to cancel.
 - Surface modes: the trackpad turns into an on-screen touch panel. Edge bars set volume, display brightness and keyboard backlight directly, with haptic detents.
 - Media mode is now a music surface: now-playing card, scrubbing along the bottom edge, track swipes, tap to play/pause (MediaRemote, with Music/Spotify AppleScript fallback).
