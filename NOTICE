@@ -1,0 +1,8 @@
+TrackpadProMax
+Copyright 2026 Serhan Ensar
+
+This product includes software developed by Serhan Ensar
+(https://github.com/SerhanEnsar/TrackpadProMax).
+
+MultitouchSupport.framework and its data layouts belong to Apple Inc.
+TrackpadProMax only loads the framework at runtime and ships none of Apple's code.
