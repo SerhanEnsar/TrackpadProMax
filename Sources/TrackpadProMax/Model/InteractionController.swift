@@ -47,6 +47,7 @@ final class InteractionController {
         input.onActivity = { [weak self] in self?.restartIdleTimer() }
         input.onDevices = { [weak self] events in self?.handleDevices(events) }
         input.onTiling = { [weak self] events in self?.handleTiling(events) }
+        input.onLauncher = { [weak self] events, knob in self?.handleLauncher(events, knob: knob) }
         pipeline.setFrameTap { [input] frame in input.process(frame) }
     }
 
@@ -172,6 +173,8 @@ final class InteractionController {
         switch tool {
         case .windowTiling:
             startTiling()
+        case .appLauncher:
+            startLauncher()
         default:
             Log.action.notice("Tool \(tool.rawValue, privacy: .public) is not available yet")
             toolMode = nil
@@ -184,11 +187,61 @@ final class InteractionController {
         toolMode = nil
         state.tiling = nil
         tilingPanel.hide()
+        launcherPanel.hide()
         if !isWheelOpen, surfaceMode == nil {
             input.install(.none, waitForLift: false)
             inputLock.release()
             idleTimer?.invalidate()
         }
+    }
+
+    // MARK: App launcher
+
+    /// Bundle IDs for the launcher; set by the owner before entering the tool.
+    var launcherBundleIDs: [String] = []
+    private let launcherPanel = OverlayPanel<AppWheelView>(size: NSSize(
+        width: AppWheelView.diameter + 120, height: AppWheelView.diameter + 120
+    ))
+
+    private func startLauncher() {
+        state.launcherApps = launcherBundleIDs.compactMap { id in
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return nil }
+            let name = FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+            return OverlayState.LauncherApp(id: id, name: name, icon: NSWorkspace.shared.icon(forFile: url.path), url: url)
+        }
+        state.launcherHighlighted = nil
+        state.launcherKnob = Point(x: 0, y: 0)
+        input.install(.launcher(RadialSelector(itemCount: max(1, state.launcherApps.count))), waitForLift: !touchesAreUp)
+        inputLock.engage()
+        launcherPanel.show(AppWheelView(state: state))
+        restartIdleTimer()
+    }
+
+    private func handleLauncher(_ events: [RadialSelector.Event], knob: Point) {
+        guard toolMode?.tool == .appLauncher else { return }
+        state.launcherKnob = knob
+        for event in events {
+            switch event {
+            case let .highlight(index):
+                state.launcherHighlighted = index.flatMap { state.launcherApps.indices.contains($0) ? $0 : nil }
+                HapticEngine.shared.play(.tick)
+            case let .confirm(index):
+                guard let index, state.launcherApps.indices.contains(index) else {
+                    // Middle = back to the mode wheel.
+                    HapticEngine.shared.play(.weak)
+                    onBackToWheel()
+                    return
+                }
+                let app = state.launcherApps[index]
+                HapticEngine.shared.play(.click)
+                onSurfaceIdle()
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                NSWorkspace.shared.openApplication(at: app.url, configuration: configuration)
+                return
+            }
+        }
+        restartIdleTimer()
     }
 
     // MARK: Window tiling
@@ -552,6 +605,7 @@ private final class OverlayInput: @unchecked Sendable {
         case surface(ControlSurfaceTracker)
         case devices(DevicePicker)
         case tiling(TilingFlow)
+        case launcher(RadialSelector)
     }
 
     // Set once on the main actor before frames flow; only called on the main actor.
@@ -560,6 +614,7 @@ private final class OverlayInput: @unchecked Sendable {
     var onActivity: @MainActor @Sendable () -> Void = {}
     var onDevices: @MainActor @Sendable ([DevicePicker.Event]) -> Void = { _ in }
     var onTiling: @MainActor @Sendable ([TilingFlow.Event]) -> Void = { _ in }
+    var onLauncher: @MainActor @Sendable ([RadialSelector.Event], Point) -> Void = { _, _ in }
 
     private let lock = NSLock()
     private var kind = Kind.none
@@ -601,6 +656,17 @@ private final class OverlayInput: @unchecked Sendable {
             lock.unlock()
             if !events.isEmpty || moved {
                 let callback = onWheel
+                Task { @MainActor in callback(events, knob) }
+            }
+        case var .launcher(selector):
+            let events = selector.process(frame)
+            let knob = selector.knob
+            kind = .launcher(selector)
+            let moved = knob != lastKnob
+            lastKnob = knob
+            lock.unlock()
+            if !events.isEmpty || moved {
+                let callback = onLauncher
                 Task { @MainActor in callback(events, knob) }
             }
         case var .tiling(flow):

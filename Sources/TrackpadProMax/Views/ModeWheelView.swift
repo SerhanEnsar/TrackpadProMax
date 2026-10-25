@@ -93,7 +93,7 @@ struct ModeWheelView: View {
 }
 
 /// Ring segment centered on item `index`, 12 o'clock first, clockwise.
-private struct Wedge: Shape {
+struct Wedge: Shape {
     let index: Int
     let count: Int
     let inner: Double

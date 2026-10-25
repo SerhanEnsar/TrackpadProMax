@@ -65,6 +65,12 @@ struct BindingsSettings: View {
                     Text("Open it from the mode wheel (four-finger double tap). A four-finger tap or Esc closes it.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    if tool == .appLauncher {
+                        LauncherAppsEditor(apps: Binding(
+                            get: { LauncherApps.resolve(model.configuration.launcherApps) },
+                            set: { model.configuration.launcherApps = $0 }
+                        ))
+                    }
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -306,5 +312,52 @@ private struct SurfaceLayoutEditor: View {
             }
         }
         .frame(width: 190)
+    }
+}
+
+/// Edits the apps on the launcher wheel (up to `LauncherApps.maxCount`).
+private struct LauncherAppsEditor: View {
+    @Binding var apps: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            List {
+                ForEach(apps, id: \.self) { bundleID in
+                    HStack {
+                        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().frame(width: 20, height: 20)
+                            Text(FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: ""))
+                        } else {
+                            Text(bundleID).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button { apps.removeAll { $0 == bundleID } } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                    }
+                }
+                .onMove { apps.move(fromOffsets: $0, toOffset: $1) }
+            }
+            .listStyle(.bordered(alternatesRowBackgrounds: true))
+            .frame(minHeight: 180)
+            HStack {
+                Button("Add App…", systemImage: "plus") { add() }
+                    .disabled(apps.count >= LauncherApps.maxCount)
+                Spacer()
+                Text("Drag to reorder · up to \(LauncherApps.maxCount) apps").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func add() {
+        let panel = NSOpenPanel()
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = true
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            if let id = Bundle(url: url)?.bundleIdentifier, !apps.contains(id), apps.count < LauncherApps.maxCount {
+                apps.append(id)
+            }
+        }
     }
 }

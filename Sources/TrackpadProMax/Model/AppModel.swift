@@ -111,6 +111,7 @@ final class AppModel {
             if mode.isControlSurface {
                 interaction.enterSurface(mode)
             } else {
+                interaction.launcherBundleIDs = LauncherApps.resolve(configuration.launcherApps)
                 interaction.enterTool(mode)
             }
             HapticEngine.shared.play([.weak, .strong])

@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Observation
 import TrackpadCore
 
@@ -43,6 +43,17 @@ final class OverlayState {
         /// pane → app index
         var assignments: [Int: Int] = [:]
     }
+
+    struct LauncherApp: Identifiable {
+        let id: String
+        let name: String
+        let icon: NSImage
+        let url: URL
+    }
+
+    var launcherApps: [LauncherApp] = []
+    var launcherHighlighted: Int?
+    var launcherKnob = Point(x: 0, y: 0)
 
     /// The window-tiling tool, while open.
     var tiling: TilingState?
