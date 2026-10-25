@@ -38,18 +38,13 @@ enum WindowTiler {
         guard let screen = NSScreen.main else { return }
         let frames = placements.map { (pid: $0.pid, frame: axFrame(for: $0.pane, on: screen)) }
         Task { @MainActor in
+            var placed: [(pid: pid_t, window: AXUIElement)] = []
             for placement in frames {
-                await place(pid: placement.pid, frame: placement.frame)
+                if let window = await place(pid: placement.pid, frame: placement.frame) {
+                    placed.append((placement.pid, window))
+                }
             }
-            // Raise in reverse so the first pane's app ends up frontmost. A
-            // background app cannot activate others directly (cooperative
-            // activation), but Accessibility can mark an app frontmost.
-            for placement in frames.reversed() {
-                AXUIElementSetAttributeValue(
-                    AXUIElementCreateApplication(placement.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue
-                )
-                try? await Task.sleep(for: .milliseconds(60))
-            }
+            await bringToFront(placed)
         }
     }
 
@@ -64,8 +59,34 @@ enum WindowTiler {
         return CGRect(x: x, y: primaryHeight - topY, width: width, height: height)
     }
 
-    private static func place(pid: pid_t, frame: CGRect) async {
-        guard let running = NSRunningApplication(processIdentifier: pid) else { return }
+    /// Brings every tiled window in front of other apps, first pane on top.
+    ///
+    /// Since macOS 14 an app may only activate another if it is active itself
+    /// (cooperative activation). So we activate ourselves, then hand
+    /// activation down the chain: us → last pane's app → … → first pane's app.
+    private static func bringToFront(_ placed: [(pid: pid_t, window: AXUIElement)]) async {
+        NSApp.activate()
+        try? await Task.sleep(for: .milliseconds(80))
+        var previous = NSRunningApplication.current
+        for item in placed.reversed() {
+            guard let app = NSRunningApplication(processIdentifier: item.pid) else { continue }
+            AXUIElementPerformAction(item.window, kAXRaiseAction as CFString)
+            AXUIElementSetAttributeValue(item.window, kAXMainAttribute as CFString, kCFBooleanTrue)
+            if previous == NSRunningApplication.current { NSApp.yieldActivation(to: app) }
+            let activated = app.activate(from: previous, options: [])
+            if !activated {
+                // Fallback: Accessibility can still mark the app frontmost.
+                AXUIElementSetAttributeValue(AXUIElementCreateApplication(item.pid), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+            }
+            Log.action.notice("Tiling: raised \(app.localizedName ?? "?", privacy: .public) (activated: \(activated, privacy: .public))")
+            previous = app
+            try? await Task.sleep(for: .milliseconds(140))
+        }
+    }
+
+    /// Returns the window it placed, so it can be raised afterwards.
+    private static func place(pid: pid_t, frame: CGRect) async -> AXUIElement? {
+        guard let running = NSRunningApplication(processIdentifier: pid) else { return nil }
         let name = running.localizedName ?? "pid \(pid)"
         running.unhide()
         let app = AXUIElementCreateApplication(pid)
@@ -81,7 +102,7 @@ enum WindowTiler {
         }
         guard let window else {
             Log.action.error("Tiling: \(name, privacy: .public) has no window we can reach")
-            return
+            return nil
         }
 
         if bool(window, "AXFullScreen") == true {
@@ -100,8 +121,9 @@ enum WindowTiler {
             Tiled \(name, privacy: .public) to \(String(describing: frame), privacy: .public) \
             (actual \(String(describing: actual), privacy: .public), attempt \(attempt + 1, privacy: .public))
             """)
-            if ok { return }
+            if ok { break }
         }
+        return window
     }
 
     private static func set(_ window: AXUIElement, _ frame: CGRect) {
@@ -132,15 +154,26 @@ enum WindowTiler {
         return (value as? NSNumber)?.boolValue
     }
 
+    /// The app's focused/main window, else its first window, skipping
+    /// anything that is not a normal window (e.g. Finder's desktop).
     private static func mainWindow(of app: AXUIElement) -> AXUIElement? {
+        var candidates: [AXUIElement] = []
         for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
             var value: CFTypeRef?
             if AXUIElementCopyAttributeValue(app, attribute as CFString, &value) == .success, let value {
-                return (value as! AXUIElement)
+                candidates.append(value as! AXUIElement)
             }
         }
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success else { return nil }
-        return (value as? [AXUIElement])?.first
+        var list: CFTypeRef?
+        if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &list) == .success {
+            candidates += list as? [AXUIElement] ?? []
+        }
+        return candidates.first(where: isStandardWindow)
+    }
+
+    private static func isStandardWindow(_ window: AXUIElement) -> Bool {
+        var subrole: CFTypeRef?
+        AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &subrole)
+        return (subrole as? String) == (kAXStandardWindowSubrole as String)
     }
 }
