@@ -86,9 +86,20 @@ private func line(from a: Point, to b: Point, steps: Int = 30) -> [Point] {
         #expect(events == [.began(.left), .ended(.left)])
     }
 
-    @Test func middleIsInert() {
+    @Test func middleSlideIsInert() {
         let events = run(slide(line(from: Point(x: 0.5, y: 0.5), to: Point(x: 0.5, y: 0.6))))
         #expect(events.isEmpty)
+    }
+
+    @Test func middleQuickTouchIsCenterTap() {
+        let events = run(slide(Array(repeating: Point(x: 0.5, y: 0.5), count: 10)))
+        #expect(events == [.centerTap])
+    }
+
+    @Test func musicLayoutIsMusic() {
+        #expect(ControlSurfaceLayout.music.isMusic)
+        #expect(ControlSurfaceLayout().isMusic, "default Control layout has a media bar")
+        #expect(!ControlSurfaceLayout(left: .volume, right: .brightness, top: .none, bottom: .keyboardBacklight).isMusic)
     }
 
     @Test func quickTouchOnTopIsTap() {

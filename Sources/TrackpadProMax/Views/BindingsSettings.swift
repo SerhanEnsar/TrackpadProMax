@@ -33,8 +33,7 @@ struct BindingsSettings: View {
                         }
                     }
                     Divider()
-                    Button("New Gesture Mode") { addMode() }
-                    Button("New Control Surface") { addMode(surface: true) }
+                    Button("New Surface Mode") { addMode(surface: true) }
                     Button("Duplicate Mode") { duplicateMode(modeIndex) }
                     Button("Delete Mode", role: .destructive) { deleteMode(modeIndex) }
                         .disabled(model.configuration.modes.count < 2)

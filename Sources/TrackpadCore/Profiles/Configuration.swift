@@ -81,7 +81,7 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
 /// Everything the user can configure. Persisted as JSON.
 public struct Configuration: Sendable, Codable, Equatable {
     /// Bumped when stored values need migrating. See `migrate()`.
-    public static let currentSchemaVersion = 2
+    public static let currentSchemaVersion = 3
 
     public var schemaVersion = Configuration.currentSchemaVersion
     public var isEnabled = true
@@ -143,6 +143,14 @@ public struct Configuration: Sendable, Codable, Equatable {
                 modes.append(Self.controlMode)
             }
         }
+        if schemaVersion < 3 {
+            // 0.2: every mode but Normal is a surface; Media becomes a music surface.
+            for index in modes.indices where modes[index].name == "Media" && !modes[index].isControlSurface {
+                modes[index].surface = .music
+                modes[index].bindings = []
+                modes[index].appProfiles = []
+            }
+        }
         schemaVersion = Self.currentSchemaVersion
     }
 
@@ -169,15 +177,7 @@ public struct Configuration: Sendable, Codable, Equatable {
             GestureBinding(trigger: .press(tier: .hard, fingers: 1, zone: .bottomRight), action: .system(.screenshot)),
             GestureBinding(trigger: .tap(fingers: 4, count: 2, zone: .anywhere), action: .modeWheel),
         ])
-        let media = Mode(name: "Media", symbol: "play.circle", bindings: [
-            GestureBinding(trigger: .press(tier: .hard, fingers: 1, zone: .center), action: .system(.playPause)),
-            GestureBinding(trigger: .press(tier: .hard, fingers: 1, zone: .leftEdge), action: .system(.previousTrack)),
-            GestureBinding(trigger: .press(tier: .hard, fingers: 1, zone: .rightEdge), action: .system(.nextTrack)),
-            GestureBinding(trigger: .press(tier: .medium, fingers: 1, zone: .topEdge), action: .system(.volumeUp)),
-            GestureBinding(trigger: .press(tier: .medium, fingers: 1, zone: .bottomEdge), action: .system(.volumeDown)),
-            GestureBinding(trigger: .tap(fingers: 3, count: 1, zone: .anywhere), action: .system(.mute)),
-            GestureBinding(trigger: .tap(fingers: 4, count: 2, zone: .anywhere), action: .modeWheel),
-        ])
+        let media = Mode(name: "Media", symbol: "play.circle", surface: .music)
         return Configuration(modes: [normal, media, controlMode])
     }
 

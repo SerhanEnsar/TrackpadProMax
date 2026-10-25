@@ -102,4 +102,25 @@ import Testing
         let decoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(config))
         #expect(decoded.modes[index].surface?.top == .volume)
     }
+
+    @Test func v2MediaGestureModeBecomesMusicSurface() throws {
+        var old = Configuration(modes: [
+            Mode(name: "Normal", symbol: "hand.point.up.left"),
+            Mode(name: "Media", symbol: "play.circle", bindings: [
+                GestureBinding(trigger: .tap(fingers: 3, count: 1, zone: .anywhere), action: .system(.mute)),
+            ]),
+        ])
+        old.schemaVersion = 2
+        let config = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(old))
+        let media = try #require(config.modes.first { $0.name == "Media" })
+        #expect(media.surface == .music)
+        #expect(media.bindings.isEmpty)
+        #expect(media.id == old.modes[1].id)
+        #expect(config.gestureModes.map(\.name) == ["Normal"])
+    }
+
+    @Test func defaultsHaveOneGestureMode() {
+        #expect(Configuration.defaults.gestureModes.map(\.name) == ["Normal"])
+        #expect(Configuration.defaults.modes.map(\.name) == ["Normal", "Media", "Control"])
+    }
 }

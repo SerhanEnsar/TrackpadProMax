@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import TrackpadCore
 
@@ -15,11 +16,15 @@ struct ControlSurfaceView: View {
                 .overlay(RoundedRectangle(cornerRadius: 34).strokeBorder(.white.opacity(0.18), lineWidth: 1))
                 .shadow(color: .black.opacity(0.35), radius: 24, y: 8)
 
-            VStack(spacing: 4) {
-                Text(state.surfaceName).font(.system(size: 20, weight: .bold, design: .rounded))
-                Text("Slide along an edge · 4-finger double tap for modes")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if state.surfaceLayout.isMusic {
+                NowPlayingCard(track: state.nowPlaying, modeName: state.surfaceName)
+            } else {
+                VStack(spacing: 4) {
+                    Text(state.surfaceName).font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text("Slide along an edge · 4-finger double tap for modes")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             bar(.left).frame(width: 52, height: 230).offset(x: -Self.size.width / 2 + 48)
@@ -87,6 +92,17 @@ struct ControlSurfaceView: View {
             }
         case .none:
             Image(systemName: control.symbol).font(.system(size: 14))
+        case .seek:
+            let track = state.nowPlaying
+            let elapsed = (state.surfaceValues[edge] ?? 0) * (track?.duration ?? 0)
+            HStack {
+                Text(track.map { _ in Self.time(elapsed) } ?? "--:--").font(.caption.monospacedDigit().bold())
+                Spacer()
+                Image(systemName: control.symbol).font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Text(track.map { Self.time($0.duration) } ?? "--:--").font(.caption.monospacedDigit())
+            }
+            .padding(.horizontal, 16)
         default:
             if edge.isVertical {
                 VStack(spacing: 6) {
@@ -102,6 +118,59 @@ struct ControlSurfaceView: View {
                     Text("\(percent)").font(.caption.monospacedDigit().bold())
                 }
                 .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    static func time(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+/// Middle of a music surface: what is playing, and how far along.
+private struct NowPlayingCard: View {
+    let track: NowPlaying?
+    let modeName: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            artwork
+                .frame(width: 84, height: 84)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
+            VStack(alignment: .leading, spacing: 4) {
+                if let track {
+                    Text(track.title).font(.headline).lineLimit(2)
+                    Text(track.artist).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    HStack(spacing: 6) {
+                        Image(systemName: track.isPlaying ? "pause.fill" : "play.fill")
+                        ProgressView(value: track.progress).progressViewStyle(.linear)
+                    }
+                    .font(.caption)
+                    .padding(.top, 4)
+                } else {
+                    Text(modeName).font(.headline)
+                    Text("Nothing playing").font(.subheadline).foregroundStyle(.secondary)
+                }
+                Text("Tap the middle to play/pause")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(width: 180, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if let data = track?.artwork, let image = NSImage(data: data) {
+            Image(nsImage: image).resizable().scaledToFill()
+        } else if let bundleID = track?.appBundleID,
+                  let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit().padding(6)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12).fill(.black.opacity(0.2))
+                Image(systemName: "music.note").font(.system(size: 30)).foregroundStyle(.secondary)
             }
         }
     }

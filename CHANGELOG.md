@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Added
+- Mode wheel: four-finger double tap opens a radial wheel; slide to pick a mode with haptic ticks, tap to switch, tap in the middle to cancel.
+- Surface modes: the trackpad turns into an on-screen touch panel. Edge bars set volume, display brightness and keyboard backlight directly, with haptic detents.
+- Media mode is now a music surface: now-playing card, scrubbing along the bottom edge, track swipes, tap to play/pause (MediaRemote, with Music/Spotify AppleScript fallback).
 - Gesture Discovery HUD: when you open an app, a card lists its trackpad gestures, and hovering a gesture plays it on an animated trackpad. Show it any time with `⌃⌥⌘G`.
 - Animated gesture preview in the gesture editor.
 - Multitouch stream from the private MultitouchSupport framework, loaded at runtime.

@@ -19,8 +19,13 @@ When you switch to an app that has gestures, a small notification-style card wit
 - [x] Auto-dismiss (paused while hovered), "don't show again for this app", scope setting
 - [ ] Polish from real-world use
 
+## v0.2 — Mode wheel & surfaces
+- [x] Radial mode wheel (four-finger double tap / hotkey), haptic ticks, tap to switch
+- [x] Surface modes: on-screen trackpad with edge bars (volume, brightness, keyboard backlight, tracks, scrubbing)
+- [x] Music surface with now-playing info
+- [ ] More surfaces (numpad, app-specific panels)
+
 ## v0.3 — Continuous pressure controls
-- Pressure slider: volume / brightness follow force while a zone or modifier is held, with a haptic tick per step
 - Pressure-sensitive scroll and zoom speed
 - Scroll detents, a "notched wheel" feel when scrolling
 

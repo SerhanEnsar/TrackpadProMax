@@ -13,7 +13,7 @@ public enum SystemControls {
         case .volume: Volume.get()
         case .brightness: Brightness.get()
         case .keyboardBacklight: KeyboardBacklight.get()
-        case .none, .media: nil
+        case .none, .media, .seek: nil
         }
     }
 
@@ -25,7 +25,7 @@ public enum SystemControls {
         case .volume: Volume.set(clamped)
         case .brightness: Brightness.set(clamped)
         case .keyboardBacklight: KeyboardBacklight.set(clamped)
-        case .none, .media: return nil
+        case .none, .media, .seek: return nil
         }
         return Self.value(of: control)
     }

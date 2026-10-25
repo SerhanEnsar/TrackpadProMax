@@ -8,6 +8,8 @@ public enum SurfaceControl: String, Sendable, Codable, CaseIterable {
     case keyboardBacklight
     /// Swipe for previous/next track, tap to play/pause.
     case media
+    /// Scrub through the playing track.
+    case seek
 
     public var displayName: String {
         switch self {
@@ -15,7 +17,8 @@ public enum SurfaceControl: String, Sendable, Codable, CaseIterable {
         case .volume: "Volume"
         case .brightness: "Display brightness"
         case .keyboardBacklight: "Keyboard backlight"
-        case .media: "Media"
+        case .media: "Tracks (swipe / tap)"
+        case .seek: "Track position"
         }
     }
 
@@ -26,11 +29,15 @@ public enum SurfaceControl: String, Sendable, Codable, CaseIterable {
         case .brightness: "sun.max.fill"
         case .keyboardBacklight: "light.max"
         case .media: "playpause.fill"
+        case .seek: "timeline.selection"
         }
     }
 
     /// Continuous controls have a 0...1 value; `media` is discrete.
     public var isContinuous: Bool { self != .none && self != .media }
+
+    /// Controls about the playing track; their surface shows Now Playing.
+    public var isMusic: Bool { self == .media || self == .seek }
 }
 
 public enum SurfaceEdge: String, Sendable, Codable, CaseIterable {
@@ -50,6 +57,20 @@ public struct ControlSurfaceLayout: Sendable, Codable, Hashable {
     public var bottom: SurfaceControl = .keyboardBacklight
 
     public init() {}
+
+    public init(left: SurfaceControl, right: SurfaceControl, top: SurfaceControl, bottom: SurfaceControl) {
+        self.left = left
+        self.right = right
+        self.top = top
+        self.bottom = bottom
+    }
+
+    /// Music-focused layout used by the default Media mode.
+    public static let music = ControlSurfaceLayout(left: .none, right: .volume, top: .media, bottom: .seek)
+
+    /// True if any edge controls playback, so the surface shows Now Playing
+    /// and a tap in the middle plays/pauses.
+    public var isMusic: Bool { SurfaceEdge.allCases.contains { self[$0].isMusic } }
 
     public subscript(edge: SurfaceEdge) -> SurfaceControl {
         get {
@@ -92,6 +113,8 @@ public struct ControlSurfaceTracker: Sendable {
         /// +1 = right/up, -1 = left/down.
         case swipe(SurfaceEdge, Int)
         case ended(SurfaceEdge)
+        /// Quick touch in the middle, away from every edge band.
+        case centerTap
     }
 
     /// Size of each edge band, as a fraction of width/height.
@@ -140,10 +163,10 @@ public struct ControlSurfaceTracker: Sendable {
             swiped = false
             return edge.map { [.began($0)] } ?? []
         }
+        movement = max(movement, start.distance(to: touch.position))
         guard let edge else { return [] }
         let delta = edge.isVertical ? touch.position.y - last.y : touch.position.x - last.x
         last = touch.position
-        movement = max(movement, start.distance(to: touch.position))
         guard delta != 0 else { return [] }
 
         swipeAccumulator += delta
@@ -159,8 +182,9 @@ public struct ControlSurfaceTracker: Sendable {
         guard trackedID != nil else { return [] }
         trackedID = nil
         defer { edge = nil }
-        guard let edge else { return [] }
-        if time - startTime <= maxTapDuration, movement <= maxTapMovement {
+        let isTap = time - startTime <= maxTapDuration && movement <= maxTapMovement
+        guard let edge else { return isTap ? [.centerTap] : [] }
+        if isTap {
             return [.tap(edge), .ended(edge)]
         }
         return [.ended(edge)]

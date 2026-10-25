@@ -28,7 +28,8 @@ Every MacBook since 2015 has a **Force Touch trackpad**. It measures how hard ea
 | **Pressure tiers** | Light, medium and hard presses are separate gestures, each with its own action. |
 | **Tap gestures** | 1–4 finger taps and double taps, without clicking. |
 | **Corner & edge zones** | Hard-press the top-right corner for Mission Control, the left edge for the previous track, and so on. |
-| **Trackpad modes** | Switchable sets of gestures (e.g. *Normal*, *Media*). Cycle them with a global hotkey (default `⌃⌥⌘T`), with a haptic and an on-screen badge. |
+| **Mode wheel** | Four-finger double tap opens a radial wheel in the middle of the screen. Slide a finger to point at a mode (each step ticks through the Taptic Engine), tap to switch. Also on `⌃⌥⌘T`. |
+| **Surface modes** | The whole trackpad becomes a touch control panel shown on screen. **Control**: slide the right edge for volume, the left for display brightness, the bottom for keyboard backlight. **Media**: now-playing card, scrub the track along the bottom edge, swipe the top for tracks, tap the middle to play/pause. Every edge is configurable. |
 | **Per-app profiles** | Gestures that only apply in Safari, Final Cut, Figma… |
 | **Haptic feedback** | Direct Taptic Engine control: confirm each gesture with a tick or a heavy click. |
 | **Actions** | Keyboard shortcuts, right/middle click, media and brightness keys, Mission Control, Show Desktop, screenshot, lock screen, open apps or URLs, run **Shortcuts** and **AppleScript**. |
@@ -62,21 +63,15 @@ Run the tests with `scripts/test.sh` (or `swift test` with Xcode installed).
 
 TrackpadProMax needs **Accessibility** access (*System Settings › Privacy & Security › Accessibility*) to send shortcuts and clicks. Reading the trackpad and playing haptics work without it. The app does no networking, and nothing leaves your Mac.
 
-## Default gestures
+## Default modes
 
-| Mode | Gesture | Action |
-|---|---|---|
-| Normal | 3-finger tap | Middle click |
-| Normal | Hard press, top-right corner | Mission Control |
-| Normal | Hard press, top-left corner | Show Desktop |
-| Normal | Hard press, bottom-right corner | Screenshot |
-| Media | Hard press, center | Play / Pause |
-| Media | Hard press, left / right edge | Previous / Next track |
-| Media | Medium press, top / bottom edge | Volume up / down |
-| Media | 3-finger tap | Mute |
-| Both | 4-finger double tap | Next mode |
+| Mode | How it works |
+|---|---|
+| **Normal** | Your gestures. 3-finger tap = middle click; hard press in the top-right / top-left / bottom-right corner = Mission Control / Show Desktop / Screenshot; 4-finger double tap = mode wheel. |
+| **Media** | Surface: now playing in the middle (tap = play/pause), top edge swipe = previous/next track, bottom edge = scrub the track, right edge = volume. |
+| **Control** | Surface: right edge = volume, left = display brightness, bottom = keyboard backlight, top = tracks. |
 
-You can change all of them in **Settings › Gestures**.
+Surfaces close after a few idle seconds or with Esc. You can change gestures and edge controls in **Settings › Gestures**.
 
 ## How it works
 

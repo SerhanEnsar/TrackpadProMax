@@ -28,6 +28,11 @@ final class InteractionController {
         width: ControlSurfaceView.size.width + 60, height: ControlSurfaceView.size.height + 60
     ))
     private var idleTimer: Timer?
+    private var nowPlayingTimer: Timer?
+    /// While scrubbing, polled positions would yank the bar back; ignore them.
+    private var scrubbingUntil = Date.distantPast
+    private var pendingSeek: TimeInterval?
+    private var seekScheduled = false
     private var adjustStep: [SurfaceEdge: Int] = [:]
 
     init(pipeline: TouchPipeline) {
@@ -125,6 +130,7 @@ final class InteractionController {
         state.surfaceLayout = layout
         state.activeEdge = nil
         refreshSurfaceValues()
+        startNowPlayingUpdates()
         inputLock.engage()
         if !isWheelOpen {
             input.install(.surface(ControlSurfaceTracker()), waitForLift: !touchesAreUp)
@@ -136,6 +142,8 @@ final class InteractionController {
     func exitSurface() {
         guard surfaceMode != nil else { return }
         surfaceMode = nil
+        nowPlayingTimer?.invalidate()
+        nowPlayingTimer = nil
         surfacePanel.hide()
         if !isWheelOpen {
             input.install(.none, waitForLift: false)
@@ -145,8 +153,45 @@ final class InteractionController {
     }
 
     private func refreshSurfaceValues() {
-        for edge in SurfaceEdge.allCases {
+        for edge in SurfaceEdge.allCases where state.surfaceLayout[edge] != .seek {
             state.surfaceValues[edge] = SystemControls.value(of: state.surfaceLayout[edge]) ?? 0
+        }
+    }
+
+    // MARK: Now Playing
+
+    private func startNowPlayingUpdates() {
+        nowPlayingTimer?.invalidate()
+        state.nowPlaying = nil
+        guard state.surfaceLayout.isMusic else { return }
+        refreshNowPlaying()
+        nowPlayingTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshNowPlaying() }
+        }
+    }
+
+    private func refreshNowPlaying() {
+        NowPlayingCenter.shared.fetch { [weak self] info in
+            guard let self, self.surfaceMode != nil else { return }
+            guard Date() > self.scrubbingUntil else { return }
+            self.state.nowPlaying = info
+            for edge in SurfaceEdge.allCases where self.state.surfaceLayout[edge] == .seek {
+                self.state.surfaceValues[edge] = info?.progress ?? 0
+            }
+        }
+    }
+
+    /// Seeks at most ~8 times a second while scrubbing, plus once at the end.
+    private func scheduleSeek(_ seconds: TimeInterval, flush: Bool = false) {
+        pendingSeek = seconds
+        guard !seekScheduled || flush else { return }
+        seekScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + (flush ? 0 : 0.12)) { [weak self] in
+            guard let self else { return }
+            self.seekScheduled = false
+            guard let target = self.pendingSeek else { return }
+            self.pendingSeek = nil
+            NowPlayingCenter.shared.seek(to: target, appBundleID: self.state.nowPlaying?.appBundleID)
         }
     }
 
@@ -156,14 +201,25 @@ final class InteractionController {
             switch event {
             case let .began(edge):
                 state.activeEdge = edge
-                state.surfaceValues[edge] = SystemControls.value(of: state.surfaceLayout[edge]) ?? 0
+                if state.surfaceLayout[edge] == .seek {
+                    state.surfaceValues[edge] = state.nowPlaying?.progress ?? 0
+                } else {
+                    state.surfaceValues[edge] = SystemControls.value(of: state.surfaceLayout[edge]) ?? 0
+                }
                 adjustStep[edge] = step(state.surfaceValues[edge] ?? 0)
             case let .adjust(edge, delta):
                 let control = state.surfaceLayout[edge]
                 guard control.isContinuous else { continue }
                 let target = min(1, max(0, (state.surfaceValues[edge] ?? 0) + delta))
                 state.surfaceValues[edge] = target
-                SystemControls.set(control, to: target)
+                if control == .seek {
+                    guard let track = state.nowPlaying, track.duration > 0 else { continue }
+                    scrubbingUntil = Date().addingTimeInterval(1.5)
+                    state.nowPlaying?.elapsed = target * track.duration
+                    scheduleSeek(target * track.duration)
+                } else {
+                    SystemControls.set(control, to: target)
+                }
                 let newStep = step(target)
                 if newStep != adjustStep[edge] {
                     adjustStep[edge] = newStep
@@ -181,6 +237,13 @@ final class InteractionController {
                 }
             case let .ended(edge):
                 if state.activeEdge == edge { state.activeEdge = nil }
+                if state.surfaceLayout[edge] == .seek, let pendingSeek { scheduleSeek(pendingSeek, flush: true) }
+            case .centerTap:
+                if state.surfaceLayout.isMusic {
+                    ActionPerformer.shared.perform(.system(.playPause))
+                    HapticEngine.shared.play(.medium)
+                    state.nowPlaying?.isPlaying.toggle()
+                }
             }
         }
         restartIdleTimer()

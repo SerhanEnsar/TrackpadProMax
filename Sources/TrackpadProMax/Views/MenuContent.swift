@@ -102,7 +102,9 @@ private struct ActiveBindingsList: View {
                     .buttonStyle(.borderless)
                     .help("Show the gesture card for this app")
             }
-            if bindings.isEmpty {
+            if model.activeMode.isControlSurface {
+                Text("Surface mode: slide along the trackpad's edges.").font(.callout).foregroundStyle(.secondary)
+            } else if bindings.isEmpty {
                 Text("No gestures in this mode.").font(.callout).foregroundStyle(.secondary)
             }
             ForEach(bindings) { binding in
