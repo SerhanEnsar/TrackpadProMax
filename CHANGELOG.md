@@ -6,6 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Fixed
+- Tiled windows no longer collapse to one with Stage Manager on: it is turned off before tiling, and every tiled window is brought to the front.
 - Window tiling lists every open app (it used to miss apps on other desktops or behind a full-screen app) and places all of them: hidden or other-desktop apps are brought over, full-screen windows leave full screen first, and each placement is checked and retried.
 - The two-finger confirm in window tiling works when the fingers land or lift a moment apart.
 - The timer starts with a firm press, so it no longer clashes with the Back tap in the middle.

@@ -38,6 +38,12 @@ enum WindowTiler {
         guard let screen = NSScreen.main else { return }
         let frames = placements.map { (pid: $0.pid, frame: axFrame(for: $0.pane, on: screen)) }
         Task { @MainActor in
+            // Stage Manager keeps only the active app on stage, so a tiled
+            // layout would collapse to one window. Turn it off first.
+            if StageManager.isOn {
+                StageManager.turnOff()
+                try? await Task.sleep(for: .milliseconds(900))
+            }
             var placed: [(pid: pid_t, window: AXUIElement)] = []
             for placement in frames {
                 if let window = await place(pid: placement.pid, frame: placement.frame) {
@@ -175,5 +181,23 @@ enum WindowTiler {
         var subrole: CFTypeRef?
         AXUIElementCopyAttributeValue(window, kAXSubroleAttribute as CFString, &subrole)
         return (subrole as? String) == (kAXStandardWindowSubrole as String)
+    }
+}
+
+/// Stage Manager's on/off switch, the same preference Control Center flips.
+@MainActor
+enum StageManager {
+    private static let domain = "com.apple.WindowManager" as CFString
+    private static let key = "GloballyEnabled" as CFString
+
+    static var isOn: Bool {
+        CFPreferencesAppSynchronize(domain)
+        return (CFPreferencesCopyAppValue(key, domain) as? Bool) ?? false
+    }
+
+    static func turnOff() {
+        CFPreferencesSetAppValue(key, kCFBooleanFalse, domain)
+        CFPreferencesAppSynchronize(domain)
+        Log.action.notice("Tiling: turned Stage Manager off")
     }
 }

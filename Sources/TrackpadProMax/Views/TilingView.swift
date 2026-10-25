@@ -55,6 +55,8 @@ struct TilingView: View {
         switch tiling.phase {
         case .chooseCount: "Press a corner of the trackpad to choose"
         case .adjust: "Press near a line and drag it · two-finger tap to confirm"
+        case .assign where StageManager.isOn:
+            "Stage Manager will be turned off so all windows stay on screen · slide on the left edge to pick an app · press and drag it onto a pane"
         case .assign:
             "Slide on the left edge to pick an app · press and drag it onto a pane · \(tiling.assignments.count)/\(min(tiling.layout.count, tiling.apps.count)) placed"
         }
