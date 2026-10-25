@@ -55,6 +55,10 @@ final class OverlayState {
     var launcherHighlighted: Int?
     var launcherKnob = Point(x: 0, y: 0)
 
+    /// Quick Settings grid: highlighted cell and each switch's state.
+    var quickHighlighted: Int?
+    var quickStates: [QuickToggle: Bool] = [:]
+
     var timerMinutes = 25
     /// Seconds left on a running timer, shown on the dial.
     var timerRemaining: TimeInterval?

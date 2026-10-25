@@ -44,3 +44,27 @@ import Testing
         #expect(tap(at: Point(x: 0.5, y: 0.5)).flatMap { knob.process($0) } == [.back])
     }
 }
+
+@Suite struct GridPickerTests {
+    @Test func cellsAreNumberedFromTheTop() {
+        let grid = GridPicker(columns: 3, rows: 3)
+        #expect(grid.cell(at: Point(x: 0.1, y: 0.9)) == 0)
+        #expect(grid.cell(at: Point(x: 0.5, y: 0.5)) == 4)
+        #expect(grid.cell(at: Point(x: 0.9, y: 0.1)) == 8)
+        #expect(QuickToggle.grid[4] == nil, "middle is Back")
+    }
+
+    @Test func slideHighlightsAndTapPicks() {
+        var grid = GridPicker(columns: 3, rows: 3)
+        let slide = (0...20).map { i in
+            TouchFrame(timestamp: Double(i) * 0.01, touches: [
+                Touch(id: 1, phase: .touching, position: Point(x: 0.1 + Double(i) * 0.04, y: 0.9)),
+            ])
+        } + [TouchFrame(timestamp: 0.3, touches: [])]
+        #expect(slide.flatMap { grid.process($0) } == [.highlight(0), .highlight(1), .highlight(2)])
+        let tap = (0..<8).map { TouchFrame(timestamp: 1 + Double($0) * 0.01, touches: [
+            Touch(id: 2, phase: .touching, position: Point(x: 0.5, y: 0.1)),
+        ]) } + [TouchFrame(timestamp: 1.1, touches: [])]
+        #expect(tap.flatMap { grid.process($0) } == [.highlight(7), .tap(7)])
+    }
+}

@@ -49,6 +49,7 @@ final class InteractionController {
         input.onTiling = { [weak self] events in self?.handleTiling(events) }
         input.onLauncher = { [weak self] events, knob in self?.handleLauncher(events, knob: knob) }
         input.onTimer = { [weak self] events in self?.handleTimer(events) }
+        input.onGrid = { [weak self] events in self?.handleQuickSettings(events) }
         pipeline.setFrameTap { [input] frame in input.process(frame) }
     }
 
@@ -178,10 +179,8 @@ final class InteractionController {
             startLauncher()
         case .timer:
             startTimerTool()
-        default:
-            Log.action.notice("Tool \(tool.rawValue, privacy: .public) is not available yet")
-            toolMode = nil
-            onSurfaceIdle()
+        case .quickSettings:
+            startQuickSettings()
         }
     }
 
@@ -192,6 +191,7 @@ final class InteractionController {
         tilingPanel.hide()
         launcherPanel.hide()
         timerPanel.hide()
+        quickPanel.hide()
         timerRefresh?.invalidate()
         timerRefresh = nil
         if !isWheelOpen, surfaceMode == nil {
@@ -199,6 +199,59 @@ final class InteractionController {
             inputLock.release()
             idleTimer?.invalidate()
         }
+    }
+
+    // MARK: Quick Settings
+
+    private let quickPanel = OverlayPanel<QuickSettingsView>(size: NSSize(
+        width: QuickSettingsView.size.width + 60, height: QuickSettingsView.size.height + 60
+    ))
+
+    private func startQuickSettings() {
+        refreshQuickStates()
+        state.quickHighlighted = nil
+        input.install(.grid(GridPicker(columns: 3, rows: 3)), waitForLift: !touchesAreUp)
+        inputLock.engage()
+        quickPanel.show(QuickSettingsView(state: state))
+        restartIdleTimer()
+    }
+
+    private func refreshQuickStates() {
+        for toggle in QuickToggle.allCases {
+            state.quickStates[toggle] = QuickSettings.isOn(toggle) ?? false
+        }
+    }
+
+    private func handleQuickSettings(_ events: [GridPicker.Event]) {
+        guard toolMode?.tool == .quickSettings else { return }
+        for event in events {
+            switch event {
+            case let .highlight(index):
+                state.quickHighlighted = index
+                HapticEngine.shared.play(.tick)
+            case let .tap(index):
+                guard let toggle = QuickToggle.grid[index] else {
+                    HapticEngine.shared.play(.weak)
+                    onBackToWheel()
+                    return
+                }
+                if toggle == .lockScreen {
+                    HapticEngine.shared.play(.heavyClick)
+                    onSurfaceIdle()
+                    QuickSettings.toggle(toggle)
+                    return
+                }
+                // Show the new state right away; re-read once the system caught up.
+                state.quickStates[toggle] = !(state.quickStates[toggle] ?? false)
+                QuickSettings.toggle(toggle)
+                HapticEngine.shared.play(state.quickStates[toggle] == true ? .click : .weak)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                    guard self?.toolMode?.tool == .quickSettings else { return }
+                    self?.refreshQuickStates()
+                }
+            }
+        }
+        restartIdleTimer()
     }
 
     // MARK: Timer
@@ -665,6 +718,7 @@ private final class OverlayInput: @unchecked Sendable {
         case tiling(TilingFlow)
         case launcher(RadialSelector)
         case timer(TimerKnob)
+        case grid(GridPicker)
     }
 
     // Set once on the main actor before frames flow; only called on the main actor.
@@ -675,6 +729,7 @@ private final class OverlayInput: @unchecked Sendable {
     var onTiling: @MainActor @Sendable ([TilingFlow.Event]) -> Void = { _ in }
     var onLauncher: @MainActor @Sendable ([RadialSelector.Event], Point) -> Void = { _, _ in }
     var onTimer: @MainActor @Sendable ([TimerKnob.Event]) -> Void = { _ in }
+    var onGrid: @MainActor @Sendable ([GridPicker.Event]) -> Void = { _ in }
 
     private let lock = NSLock()
     private var kind = Kind.none
@@ -717,6 +772,17 @@ private final class OverlayInput: @unchecked Sendable {
             if !events.isEmpty || moved {
                 let callback = onWheel
                 Task { @MainActor in callback(events, knob) }
+            }
+        case var .grid(picker):
+            let events = picker.process(frame)
+            kind = .grid(picker)
+            lock.unlock()
+            if !events.isEmpty {
+                let callback = onGrid
+                Task { @MainActor in callback(events) }
+            } else if ping {
+                let callback = onActivity
+                Task { @MainActor in callback() }
             }
         case var .timer(knob):
             let events = knob.process(frame)

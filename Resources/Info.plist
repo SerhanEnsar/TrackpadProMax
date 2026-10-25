@@ -27,7 +27,9 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>TrackpadProMax runs the AppleScripts you bind to trackpad gestures.</string>
+    <string>TrackpadProMax runs the AppleScripts you bind to trackpad gestures, reads what Music or Spotify is playing, and switches Dark Mode from Quick Settings.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>TrackpadProMax turns Bluetooth on or off from Quick Settings.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Serhan Ensar. Apache License 2.0.</string>
     <key>NSPrincipalClass</key>
