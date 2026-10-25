@@ -32,6 +32,7 @@ final class AppModel {
     @ObservationIgnored private var clickMonitors: [Any] = []
     @ObservationIgnored private let modeHUD = ModeHUD()
     @ObservationIgnored private let clickGate = ClickGate()
+    @ObservationIgnored private var heldClickTarget: Double?
 
     init() {
         configuration = store.load()
@@ -58,6 +59,7 @@ final class AppModel {
         monitorPhysicalClicks()
         clickGate.onPhysicalClick = { [pipeline] in pipeline?.registerPhysicalClick() }
         clickGate.shouldHold = { [weak self] in self?.shouldHoldClick() ?? false }
+        clickGate.onHold = { [weak self] in self?.watchHeldClick() }
         if hasAccessibility { clickGate.start() }
         pipeline.start()
         watchAccessibilityPermission()
@@ -137,9 +139,23 @@ final class AppModel {
             y: touches.map(\.position.y).reduce(0, +) / Double(touches.count)
         )
         let zone = Zone.classify(center, margin: configuration.gestures.zoneMargin)
-        return activeMode.effectiveBindings(for: dispatcher.frontmostBundleID).contains { binding in
-            guard case let .press(tier, fingers, bindingZone) = binding.trigger else { return false }
-            return tier >= .medium && fingers == touches.count && bindingZone.matches(zone)
+        let tiers = activeMode.effectiveBindings(for: dispatcher.frontmostBundleID).compactMap { binding -> PressTier? in
+            guard case let .press(tier, fingers, bindingZone) = binding.trigger,
+                  tier >= .medium, fingers == touches.count, bindingZone.matches(zone) else { return nil }
+            return tier
+        }
+        // The shallowest bound press decides how deep the user has to go.
+        heldClickTarget = tiers.min().map { configuration.gestures.threshold(for: $0) }
+        return heldClickTarget != nil
+    }
+
+    /// Hands the held click over to `ClickIntent`: deliver it as soon as the
+    /// user eases off or holds still; a deep press is handled by the gesture.
+    private func watchHeldClick() {
+        let target = heldClickTarget ?? configuration.gestures.hardThreshold
+        pipeline.watchClickIntent(target: target) { [weak self] decision in
+            guard let self, decision == .click else { return }
+            clickGate.releaseHeldClick()
         }
     }
 

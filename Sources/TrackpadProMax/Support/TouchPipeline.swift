@@ -10,6 +10,8 @@ final class TouchPipeline: @unchecked Sendable {
     private var latest = TouchFrame(timestamp: 0, touches: [])
     private var token: UUID?
     private let onGesture: @MainActor @Sendable (GestureEvent) -> Void
+    private var clickIntent: ClickIntent?
+    private var onClickIntent: (@MainActor @Sendable (ClickIntent.Decision) -> Void)?
 
     init(settings: GestureSettings, onGesture: @escaping @MainActor @Sendable (GestureEvent) -> Void) {
         recognizer = GestureRecognizer(settings: settings)
@@ -21,6 +23,22 @@ final class TouchPipeline: @unchecked Sendable {
     /// Forwards a system mouse-down so the recognizer can tell clicks from taps.
     func registerPhysicalClick() {
         lock.withLock { recognizer.registerPhysicalClick() }
+    }
+
+    /// Starts judging a held click against `target` force. `decided` runs once on
+    /// the main actor with the outcome.
+    func watchClickIntent(target: Double, decided: @escaping @MainActor @Sendable (ClickIntent.Decision) -> Void) {
+        lock.withLock {
+            clickIntent = ClickIntent(target: target)
+            onClickIntent = decided
+        }
+    }
+
+    func stopWatchingClickIntent() {
+        lock.withLock {
+            clickIntent = nil
+            onClickIntent = nil
+        }
     }
 
     var settings: GestureSettings {
@@ -46,10 +64,25 @@ final class TouchPipeline: @unchecked Sendable {
     private var sessionMovement = 0.0
 
     private func process(_ frame: TouchFrame) {
-        let events = lock.withLock {
+        let (events, decision, decided) = lock.withLock {
             latest = frame
             trackSession(frame)
-            return recognizer.process(frame)
+            let events = recognizer.process(frame)
+            var decision: ClickIntent.Decision?
+            var decided: (@MainActor @Sendable (ClickIntent.Decision) -> Void)?
+            if clickIntent != nil {
+                let force = frame.activeTouches.map(\.pressure).max() ?? 0
+                decision = clickIntent?.update(force: force, at: frame.timestamp)
+                if decision != nil {
+                    decided = onClickIntent
+                    clickIntent = nil
+                    onClickIntent = nil
+                }
+            }
+            return (events, decision, decided)
+        }
+        if let decision, let decided {
+            Task { @MainActor in decided(decision) }
         }
         for event in events {
             Log.gesture.notice("Recognized \(event.trigger.displayName, privacy: .public)")

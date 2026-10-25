@@ -5,10 +5,10 @@ import TrackpadCore
 /// Holds back the system click while a deeper press might still happen.
 ///
 /// Where a medium/hard press is bound, the trackpad's mouse-down is swallowed
-/// and kept. Then one of three things happens:
+/// and kept until the user's intent is clear (see `ClickIntent`):
 /// - a bound press fires → the click is dropped (the gesture "ate" it),
-/// - the finger lifts first → the click is replayed as a normal click,
-/// - the pointer drags → the click is released immediately so dragging works.
+/// - force eases off or holds steady → the click is delivered right away,
+/// - the pointer drags or the click ends first → the click is delivered.
 ///
 /// Needs the Accessibility permission (active event tap).
 @MainActor
@@ -26,6 +26,9 @@ final class ClickGate {
 
     /// Decides at mouse-down time whether to hold the click.
     var shouldHold: () -> Bool = { false }
+    /// Called when a click starts being held; the owner reports back via
+    /// `releaseHeldClick()` once the user's intent is clear.
+    var onHold: () -> Void = {}
     /// Told about every real trackpad click, including swallowed ones.
     var onPhysicalClick: () -> Void = {}
 
@@ -69,6 +72,13 @@ final class ClickGate {
         return true
     }
 
+    /// The user eased off or is holding still: deliver the held mouse-down now.
+    /// The real mouse-up then passes through untouched.
+    func releaseHeldClick() {
+        guard case .holding = state else { return }
+        release(then: nil)
+    }
+
     /// NSEventTypePressure; not part of `CGEventType`.
     fileprivate static let pressureEventType: UInt32 = 34
 
@@ -98,6 +108,7 @@ final class ClickGate {
             state = .idle
             guard shouldHold(), let copy = event.copy() else { return event }
             state = .holding(down: copy)
+            onHold()
             return nil
 
         case .leftMouseDragged, .rightMouseDragged:
