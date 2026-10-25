@@ -39,8 +39,8 @@ final class AppModel {
     @ObservationIgnored private var interaction: InteractionController!
     /// The gesture mode to return to when a control surface closes.
     @ObservationIgnored private var lastGestureModeID: UUID?
-    /// A 4-finger tap closes an overlay, but waits to see if it is a double tap.
-    @ObservationIgnored private var pendingOverlayClose: DispatchWorkItem?
+    /// After a four-finger tap closes an overlay, its double-tap twin is ignored.
+    @ObservationIgnored private var ignoreFourFingerTapsUntil = Date.distantPast
 
     init() {
         configuration = store.load()
@@ -157,21 +157,21 @@ final class AppModel {
 
     private func handle(_ event: GestureEvent) {
         if interaction.isActive {
-            // The overlay owns the trackpad; only the wheel gesture and the
-            // 4-finger "close" tap get through.
+            // The overlay owns the trackpad. Any four-finger tap closes it and
+            // goes back to Normal; other wheel triggers still toggle the wheel.
             guard configuration.isEnabled else { return }
-            if shortcutMode?.binding(for: event.trigger, bundleID: nil)?.action == .modeWheel {
-                pendingOverlayClose?.cancel()
-                pendingOverlayClose = nil
+            if case .tap(fingers: 4, _, _) = event.trigger {
+                guard Date() >= ignoreFourFingerTapsUntil else { return }
+                ignoreFourFingerTapsUntil = Date().addingTimeInterval(configuration.gestures.doubleTapInterval + 0.15)
+                interaction.closeWheel(restoreSurface: false)
+                leaveControlSurface()
+            } else if shortcutMode?.binding(for: event.trigger, bundleID: nil)?.action == .modeWheel {
                 toggleModeWheel()
-            } else if case .tap(fingers: 4, count: 1, _) = event.trigger {
-                pendingOverlayClose?.cancel()
-                let close = DispatchWorkItem { [weak self] in self?.interaction.escape() }
-                pendingOverlayClose = close
-                DispatchQueue.main.asyncAfter(deadline: .now() + configuration.gestures.doubleTapInterval, execute: close)
             }
             return
         }
+        // The second tap of a closing double tap must not reopen the wheel.
+        if case .tap(fingers: 4, _, _) = event.trigger, Date() < ignoreFourFingerTapsUntil { return }
         let binding = activeMode.binding(for: event.trigger, bundleID: dispatcher.frontmostBundleID)
         record(event.trigger, action: configuration.isEnabled ? binding?.action.displayName : nil)
         if configuration.isEnabled, binding != nil, case .press = event.trigger, clickGate.consumeHeldClick() {

@@ -266,10 +266,15 @@ final class InteractionController {
                     return
                 }
             case .centerTap:
-                if state.surfaceLayout.isMusic {
+                switch state.surfaceLayout.center {
+                case .nowPlaying:
                     ActionPerformer.shared.perform(.system(.playPause))
                     HapticEngine.shared.play(.medium)
                     state.nowPlaying?.isPlaying.toggle()
+                case .back:
+                    HapticEngine.shared.play(.weak)
+                    escape()
+                    return
                 }
             }
         }

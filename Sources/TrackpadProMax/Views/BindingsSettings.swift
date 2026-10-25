@@ -255,7 +255,7 @@ private struct SurfaceLayoutEditor: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Slide along an edge of the trackpad to change its control. Open it from the mode wheel (four-finger double tap); it closes after a few idle seconds or with Esc.")
+            Text("Slide along an edge of the trackpad to change its control; the middle picker sets what a tap in the middle does. Open it from the mode wheel; a four-finger tap, Esc or a few idle seconds close it.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -267,10 +267,13 @@ private struct SurfaceLayoutEditor: View {
                 }
                 GridRow {
                     picker(.left)
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(.secondary.opacity(0.5))
-                        .frame(width: 160, height: 100)
-                        .overlay(Image(systemName: "hand.point.up.left").foregroundStyle(.secondary))
+                    Picker("Middle", selection: $layout.center) {
+                        ForEach(SurfaceCenter.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                    }
+                    .labelsHidden()
+                    .padding(10)
+                    .frame(width: 190, height: 100)
+                    .background(RoundedRectangle(cornerRadius: 14).strokeBorder(.secondary.opacity(0.5)))
                     picker(.right)
                 }
                 GridRow {

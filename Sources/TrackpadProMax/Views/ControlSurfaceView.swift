@@ -21,12 +21,16 @@ struct ControlSurfaceView: View {
                     .transition(.scale(scale: 0.2, anchor: volumeAnchor).combined(with: .opacity))
             } else {
                 Group {
-                    if state.surfaceLayout.isMusic {
+                    switch state.surfaceLayout.center {
+                    case .nowPlaying:
                         NowPlayingCard(track: state.nowPlaying, modeName: state.surfaceName)
-                    } else {
-                        VStack(spacing: 4) {
+                    case .back:
+                        VStack(spacing: 6) {
+                            Image(systemName: "chevron.backward.circle.fill")
+                                .font(.system(size: 34))
+                                .foregroundStyle(.tint)
                             Text(state.surfaceName).font(.system(size: 20, weight: .bold, design: .rounded))
-                            Text("Slide along an edge · hard-press volume for devices · 4-finger tap closes")
+                            Text("Tap the middle to go back")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

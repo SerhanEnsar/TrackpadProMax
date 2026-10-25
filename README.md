@@ -29,7 +29,7 @@ Every MacBook since 2015 has a **Force Touch trackpad**. It measures how hard ea
 | **Tap gestures** | 1–4 finger taps and double taps, without clicking. |
 | **Corner & edge zones** | Hard-press the top-right corner for Mission Control, the left edge for the previous track, and so on. |
 | **Mode wheel** | Four-finger double tap opens a radial wheel in the middle of the screen. Slide a finger to point at a mode (each step ticks through the Taptic Engine), tap to switch. Also on `⌃⌥⌘T`. |
-| **Surface modes** | The whole trackpad becomes a touch control panel shown on screen. **Control**: slide the right edge for volume, the left for display brightness, the bottom for keyboard backlight. **Media**: now-playing card, scrub the track along the bottom edge, swipe the top for tracks, tap the middle to play/pause. Every edge is configurable. Hard-press the volume bar to see your **output devices** (AirPods, Bluetooth speakers…): slide to pick, up/down for that device's volume, press hard to switch. A four-finger tap closes a surface. |
+| **Surface modes** | The whole trackpad becomes a touch control panel shown on screen. **Control**: slide the right edge for volume, the left for display brightness, the bottom for keyboard backlight. **Media**: now-playing card, scrub the track along the bottom edge, swipe the top for tracks, tap the middle to play/pause. Every edge is configurable. Hard-press the volume bar to see your **output devices** (AirPods, Bluetooth speakers…): slide to pick, up/down for that device's volume, press hard to switch. A four-finger tap, or a tap in the middle of Control, closes a surface. |
 | **Per-app profiles** | Gestures that only apply in Safari, Final Cut, Figma… |
 | **Haptic feedback** | Direct Taptic Engine control: confirm each gesture with a tick or a heavy click. |
 | **Actions** | Keyboard shortcuts, right/middle click, media and brightness keys, Mission Control, Show Desktop, screenshot, lock screen, open apps or URLs, run **Shortcuts** and **AppleScript**. |
@@ -69,7 +69,7 @@ TrackpadProMax needs **Accessibility** access (*System Settings › Privacy & Se
 |---|---|
 | **Normal** | Your gestures. 3-finger tap = middle click; hard press in the top-right / top-left / bottom-right corner = Mission Control / Show Desktop / Screenshot; 4-finger double tap = mode wheel. |
 | **Media** | Surface: now playing in the middle (tap = play/pause), top edge swipe = previous/next track, bottom edge = scrub the track, right edge = volume. |
-| **Control** | Surface: right edge = volume, left = display brightness, bottom = keyboard backlight, top = tracks. |
+| **Control** | Surface: right edge = volume, left = display brightness, bottom = keyboard backlight, top = tracks; tap the middle to go back. |
 
 Surfaces close after a few idle seconds or with Esc. You can change gestures and edge controls in **Settings › Gestures**.
 

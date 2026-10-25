@@ -58,6 +58,16 @@ private func line(from a: Point, to b: Point, steps: Int = 30) -> [Point] {
         #expect(events == [.highlight(0), .highlight(nil)])
     }
 
+    @Test func fourFingerTapNeverConfirms() {
+        var wheel = RadialSelector(itemCount: 4, highlighted: 1)
+        let frames = (0..<8).map { i in
+            TouchFrame(timestamp: Double(i) * 0.01, touches: (0..<4).map {
+                Touch(id: $0, phase: .touching, position: Point(x: 0.4 + Double($0) * 0.05, y: 0.5))
+            })
+        } + [TouchFrame(timestamp: 0.1, touches: [])]
+        #expect(run(&wheel, frames).isEmpty)
+    }
+
     @Test func longSlideIsNotTap() {
         var wheel = RadialSelector(itemCount: 4)
         let events = run(&wheel, slide(line(from: Point(x: 0.5, y: 0.5), to: Point(x: 0.5, y: 0.8))))
@@ -96,10 +106,19 @@ private func line(from a: Point, to b: Point, steps: Int = 30) -> [Point] {
         #expect(events == [.centerTap])
     }
 
-    @Test func musicLayoutIsMusic() {
+    @Test func onlyMusicLayoutNeedsNowPlaying() {
         #expect(ControlSurfaceLayout.music.isMusic)
-        #expect(ControlSurfaceLayout().isMusic, "default Control layout has a media bar")
-        #expect(!ControlSurfaceLayout(left: .volume, right: .brightness, top: .none, bottom: .keyboardBacklight).isMusic)
+        #expect(!ControlSurfaceLayout().isMusic, "Control: tracks bar, but the middle is Back")
+        #expect(ControlSurfaceLayout().center == .back)
+    }
+
+    @Test func oldLayoutsGetCenterFromTheirBars() throws {
+        let media = try JSONDecoder().decode(ControlSurfaceLayout.self,
+            from: Data(#"{"left":"none","right":"volume","top":"media","bottom":"seek"}"#.utf8))
+        #expect(media.center == .nowPlaying)
+        let control = try JSONDecoder().decode(ControlSurfaceLayout.self,
+            from: Data(#"{"left":"brightness","right":"volume","top":"media","bottom":"keyboardBacklight"}"#.utf8))
+        #expect(control.center == .back)
     }
 
     @Test func quickTouchOnTopIsTap() {

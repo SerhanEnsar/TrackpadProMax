@@ -40,6 +40,21 @@ public enum SurfaceControl: String, Sendable, Codable, CaseIterable {
     public var isMusic: Bool { self == .media || self == .seek }
 }
 
+/// What a quick touch in the middle of a surface does.
+public enum SurfaceCenter: String, Sendable, Codable, CaseIterable {
+    /// Shows the playing track; a tap plays/pauses.
+    case nowPlaying
+    /// A tap closes the surface and goes back to the Normal mode.
+    case back
+
+    public var displayName: String {
+        switch self {
+        case .nowPlaying: "Now playing (tap = play/pause)"
+        case .back: "Back (tap = close)"
+        }
+    }
+}
+
 public enum SurfaceEdge: String, Sendable, Codable, CaseIterable {
     case left, right, top, bottom
 
@@ -55,22 +70,26 @@ public struct ControlSurfaceLayout: Sendable, Codable, Hashable {
     public var right: SurfaceControl = .volume
     public var top: SurfaceControl = .media
     public var bottom: SurfaceControl = .keyboardBacklight
+    public var center: SurfaceCenter = .back
 
     public init() {}
 
-    public init(left: SurfaceControl, right: SurfaceControl, top: SurfaceControl, bottom: SurfaceControl) {
+    public init(
+        left: SurfaceControl, right: SurfaceControl, top: SurfaceControl, bottom: SurfaceControl,
+        center: SurfaceCenter
+    ) {
         self.left = left
         self.right = right
         self.top = top
         self.bottom = bottom
+        self.center = center
     }
 
     /// Music-focused layout used by the default Media mode.
-    public static let music = ControlSurfaceLayout(left: .none, right: .volume, top: .media, bottom: .seek)
+    public static let music = ControlSurfaceLayout(left: .none, right: .volume, top: .media, bottom: .seek, center: .nowPlaying)
 
-    /// True if any edge controls playback, so the surface shows Now Playing
-    /// and a tap in the middle plays/pauses.
-    public var isMusic: Bool { SurfaceEdge.allCases.contains { self[$0].isMusic } }
+    /// Needs Now Playing info: shows the track in the middle or scrubs it.
+    public var isMusic: Bool { center == .nowPlaying || SurfaceEdge.allCases.contains { self[$0] == .seek } }
 
     public subscript(edge: SurfaceEdge) -> SurfaceControl {
         get {
@@ -98,6 +117,9 @@ public struct ControlSurfaceLayout: Sendable, Codable, Hashable {
         right = (try? c.decodeIfPresent(SurfaceControl.self, forKey: .right)) ?? d.right
         top = (try? c.decodeIfPresent(SurfaceControl.self, forKey: .top)) ?? d.top
         bottom = (try? c.decodeIfPresent(SurfaceControl.self, forKey: .bottom)) ?? d.bottom
+        // Layouts saved before `center` existed: music surfaces keep Now Playing.
+        let hasSeek = [left, right, top, bottom].contains(.seek)
+        center = (try? c.decodeIfPresent(SurfaceCenter.self, forKey: .center)) ?? (hasSeek ? .nowPlaying : .back)
     }
 }
 

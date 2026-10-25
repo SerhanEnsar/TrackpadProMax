@@ -28,6 +28,8 @@ public struct RadialSelector: Sendable {
     private var touchStart: TimeInterval = 0
     private var touchMovement = 0.0
     private var startPosition = Point(x: 0, y: 0)
+    /// Multi-finger touches (like the four-finger close tap) never steer or confirm.
+    private var multiFinger = false
 
     public init(itemCount: Int, highlighted: Int? = nil) {
         precondition(itemCount > 0)
@@ -46,6 +48,16 @@ public struct RadialSelector: Sendable {
 
     public mutating func process(_ frame: TouchFrame) -> [Event] {
         let active = frame.activeTouches
+        if multiFinger {
+            if active.isEmpty { multiFinger = false }
+            return []
+        }
+        if active.count > 1 {
+            multiFinger = true
+            trackedID = nil
+            lastPosition = nil
+            return []
+        }
         // Follow one finger; extra fingers are ignored.
         guard let touch = active.first(where: { $0.id == trackedID }) ?? active.first else {
             return lift(at: frame.timestamp)
