@@ -11,6 +11,7 @@ final class TouchPipeline: @unchecked Sendable {
     private var token: UUID?
     private let onGesture: @MainActor @Sendable (GestureEvent) -> Void
     private var clickIntent: ClickIntent?
+    private var frameTap: (@Sendable (TouchFrame) -> Void)?
     private var onClickIntent: (@MainActor @Sendable (ClickIntent.Decision) -> Void)?
 
     init(settings: GestureSettings, onGesture: @escaping @MainActor @Sendable (GestureEvent) -> Void) {
@@ -32,6 +33,11 @@ final class TouchPipeline: @unchecked Sendable {
             clickIntent = ClickIntent(target: target)
             onClickIntent = decided
         }
+    }
+
+    /// Also hands every frame to `tap` (on the multitouch thread) while set.
+    func setFrameTap(_ tap: (@Sendable (TouchFrame) -> Void)?) {
+        lock.withLock { frameTap = tap }
     }
 
     func stopWatchingClickIntent() {
@@ -64,7 +70,7 @@ final class TouchPipeline: @unchecked Sendable {
     private var sessionMovement = 0.0
 
     private func process(_ frame: TouchFrame) {
-        let (events, decision, decided) = lock.withLock {
+        let (events, decision, decided, tap) = lock.withLock {
             latest = frame
             trackSession(frame)
             let events = recognizer.process(frame)
@@ -79,8 +85,9 @@ final class TouchPipeline: @unchecked Sendable {
                     onClickIntent = nil
                 }
             }
-            return (events, decision, decided)
+            return (events, decision, decided, frameTap)
         }
+        tap?(frame)
         if let decision, let decided {
             Task { @MainActor in decided(decision) }
         }

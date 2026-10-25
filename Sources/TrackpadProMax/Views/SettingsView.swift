@@ -34,7 +34,7 @@ private struct GeneralSettings: View {
                 .disabled(!model.configuration.hapticOnTrigger)
             }
             Section("Mode switching") {
-                LabeledContent("Next mode shortcut") {
+                LabeledContent("Mode wheel shortcut") {
                     ShortcutRecorder(combo: $model.configuration.modeHotkey)
                 }
             }

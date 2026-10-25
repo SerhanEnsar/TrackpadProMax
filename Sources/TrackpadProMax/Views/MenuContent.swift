@@ -40,7 +40,7 @@ struct MenuContent: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 if let hotkey = model.configuration.modeHotkey {
-                    Text("Switch with \(KeyNames.describe(hotkey))")
+                    Text("Mode wheel: 4-finger double tap or \(KeyNames.describe(hotkey))")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

@@ -36,6 +36,9 @@ final class AppModel {
     @ObservationIgnored private let modeHUD = ModeHUD()
     @ObservationIgnored private let clickGate = ClickGate()
     @ObservationIgnored private var heldClickTarget: Double?
+    @ObservationIgnored private var interaction: InteractionController!
+    /// The gesture mode to return to when a control surface closes.
+    @ObservationIgnored private var lastGestureModeID: UUID?
 
     init() {
         configuration = store.load()
@@ -48,6 +51,16 @@ final class AppModel {
             self?.handle(event)
         }
         ActionPerformer.shared.onNextMode = { [weak self] in self?.selectNextMode() }
+        ActionPerformer.shared.onModeWheel = { [weak self] in self?.toggleModeWheel() }
+
+        // Never start inside a control surface: it freezes the cursor.
+        if configuration.activeMode.isControlSurface, let first = configuration.gestureModes.first {
+            configuration.activeModeID = first.id
+        }
+        lastGestureModeID = configuration.activeModeID
+        interaction = InteractionController(pipeline: pipeline)
+        interaction.onSelectMode = { [weak self] id in self?.selectMode(id) }
+        interaction.onSurfaceIdle = { [weak self] in self?.leaveControlSurface() }
 
         frontmostApp = NSWorkspace.shared.frontmostApplication
         dispatcher.frontmostBundleID = frontmostApp?.bundleIdentifier
@@ -72,15 +85,50 @@ final class AppModel {
 
     // MARK: - Actions
 
+    /// Cycles through gesture modes (control surfaces are picked from the wheel).
     func selectNextMode() {
-        configuration.selectNextMode()
-        announceMode()
+        let modes = configuration.gestureModes
+        guard !modes.isEmpty else { return }
+        let index = modes.firstIndex { $0.id == configuration.activeModeID } ?? -1
+        selectMode(modes[(index + 1) % modes.count].id)
     }
 
     func selectMode(_ id: UUID) {
-        guard id != configuration.activeModeID else { return }
-        configuration.activeModeID = id
-        announceMode()
+        guard let mode = configuration.modes.first(where: { $0.id == id }) else { return }
+        if mode.isControlSurface {
+            guard id != configuration.activeModeID else { return }
+            configuration.activeModeID = id
+            interaction.enterSurface(mode)
+            HapticEngine.shared.play([.weak, .strong])
+        } else {
+            interaction.exitSurface()
+            lastGestureModeID = id
+            guard id != configuration.activeModeID else { return }
+            configuration.activeModeID = id
+            announceMode()
+        }
+    }
+
+    func toggleModeWheel() {
+        guard configuration.isEnabled else { return }
+        interaction.toggleWheel(modes: configuration.modes, activeID: configuration.activeModeID)
+    }
+
+    /// Back to the gesture mode that was active before the control surface.
+    func leaveControlSurface() {
+        let target = lastGestureModeID.flatMap { id in configuration.gestureModes.first { $0.id == id } }
+            ?? configuration.gestureModes.first
+        if let target {
+            selectMode(target.id)
+        } else {
+            interaction.exitSurface()
+        }
+    }
+
+    /// Mode whose bindings still work while an overlay owns the trackpad
+    /// (only to reopen or close the mode wheel).
+    private var shortcutMode: Mode? {
+        configuration.modes.first { $0.id == lastGestureModeID } ?? configuration.gestureModes.first
     }
 
     /// Shows the gesture card for the frontmost app, even if it has no gestures.
@@ -105,6 +153,14 @@ final class AppModel {
     // MARK: - Internals
 
     private func handle(_ event: GestureEvent) {
+        if interaction.isActive {
+            // The overlay owns the trackpad; only the wheel gesture gets through.
+            if configuration.isEnabled,
+               shortcutMode?.binding(for: event.trigger, bundleID: nil)?.action == .modeWheel {
+                toggleModeWheel()
+            }
+            return
+        }
         let binding = activeMode.binding(for: event.trigger, bundleID: dispatcher.frontmostBundleID)
         record(event.trigger, action: configuration.isEnabled ? binding?.action.displayName : nil)
         if configuration.isEnabled, binding != nil, case .press = event.trigger, clickGate.consumeHeldClick() {
@@ -133,7 +189,7 @@ final class AppModel {
 
     /// Shows the discovery card the first time a freshly launched app comes forward.
     private func announceGestures(in app: NSRunningApplication?) {
-        guard let app, configuration.isEnabled else { return }
+        guard let app, configuration.isEnabled, !activeMode.isControlSurface else { return }
         let running = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
         discoveryPolicy.prune(keeping: running)
         guard let bindings = discoveryPolicy.gesturesToAnnounce(
@@ -153,6 +209,10 @@ final class AppModel {
     }
 
     private func configurationChanged(from old: Configuration) {
+        if !configuration.isEnabled, interaction?.isActive == true {
+            interaction.closeWheel()
+            leaveControlSurface()
+        }
         dispatcher.configuration = configuration
         if old.gestures != configuration.gestures { pipeline.settings = configuration.gestures }
         if old.modeHotkey != configuration.modeHotkey || old.discovery.hotkey != configuration.discovery.hotkey {
@@ -169,7 +229,7 @@ final class AppModel {
     /// Hold the system click if a medium or hard press is bound for the current
     /// finger count and position, so the press can replace the click.
     private func shouldHoldClick() -> Bool {
-        guard configuration.isEnabled else { return false }
+        guard configuration.isEnabled, !interaction.isActive else { return false }
         let touches = pipeline.latestFrame.activeTouches
         guard !touches.isEmpty else { return false }
         let center = Point(
@@ -222,7 +282,7 @@ final class AppModel {
     private func registerHotKey() {
         hotKey?.unregister()
         hotKey = configuration.modeHotkey.flatMap { combo in
-            HotKey(combo) { [weak self] in self?.selectNextMode() }
+            HotKey(combo) { [weak self] in self?.toggleModeWheel() }
         }
         discoveryHotKey?.unregister()
         discoveryHotKey = configuration.discovery.hotkey.flatMap { combo in

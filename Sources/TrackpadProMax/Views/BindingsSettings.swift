@@ -33,7 +33,8 @@ struct BindingsSettings: View {
                         }
                     }
                     Divider()
-                    Button("New Mode") { addMode() }
+                    Button("New Gesture Mode") { addMode() }
+                    Button("New Control Surface") { addMode(surface: true) }
                     Button("Duplicate Mode") { duplicateMode(modeIndex) }
                     Button("Delete Mode", role: .destructive) { deleteMode(modeIndex) }
                         .disabled(model.configuration.modes.count < 2)
@@ -43,18 +44,52 @@ struct BindingsSettings: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 Spacer()
-                Picker("Apps", selection: $appBundleID) {
-                    Text("All Apps").tag(String?.none)
-                    ForEach(model.configuration.modes[modeIndex].appProfiles) { profile in
-                        Text(profile.appName).tag(Optional(profile.bundleID))
+                if !isSurface(modeIndex) {
+                    Picker("Apps", selection: $appBundleID) {
+                        Text("All Apps").tag(String?.none)
+                        ForEach(model.configuration.modes[modeIndex].appProfiles) { profile in
+                            Text(profile.appName).tag(Optional(profile.bundleID))
+                        }
                     }
+                    .frame(maxWidth: 220)
+                    Button("Add App…", systemImage: "plus.app") { addApp(modeIndex) }
+                        .labelStyle(.iconOnly)
+                        .help("Add gestures that only apply in one app")
                 }
-                .frame(maxWidth: 220)
-                Button("Add App…", systemImage: "plus.app") { addApp(modeIndex) }
-                    .labelStyle(.iconOnly)
-                    .help("Add gestures that only apply in one app")
             }
 
+            if isSurface(modeIndex) {
+                SurfaceLayoutEditor(layout: Binding(
+                    get: { model.configuration.modes[modeIndex].surface ?? ControlSurfaceLayout() },
+                    set: { model.configuration.modes[modeIndex].surface = $0 }
+                ))
+            } else {
+                bindingList(modeIndex)
+            }
+        }
+        .padding(20)
+        .sheet(item: $editing) { binding in
+            BindingEditor(binding: binding, isNew: isNew) { saved in
+                save(modeIndex, saved)
+            }
+        }
+        .alert("Rename Mode", isPresented: $renamingMode) {
+            TextField("Name", text: $modeName)
+            Button("Rename") {
+                let name = modeName.trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty { model.configuration.modes[modeIndex].name = name }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .onChange(of: modeID) { appBundleID = nil }
+    }
+
+    private func isSurface(_ modeIndex: Int) -> Bool {
+        model.configuration.modes[modeIndex].isControlSurface
+    }
+
+    @ViewBuilder
+    private func bindingList(_ modeIndex: Int) -> some View {
             List {
                 ForEach(bindings(modeIndex)) { binding in
                     BindingRow(binding: binding, isOn: Binding(
@@ -87,22 +122,6 @@ struct BindingsSettings: View {
                 Spacer()
                 Text("Double-click a gesture to edit it.").font(.caption).foregroundStyle(.secondary)
             }
-        }
-        .padding(20)
-        .sheet(item: $editing) { binding in
-            BindingEditor(binding: binding, isNew: isNew) { saved in
-                save(modeIndex, saved)
-            }
-        }
-        .alert("Rename Mode", isPresented: $renamingMode) {
-            TextField("Name", text: $modeName)
-            Button("Rename") {
-                let name = modeName.trimmingCharacters(in: .whitespaces)
-                if !name.isEmpty { model.configuration.modes[modeIndex].name = name }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-        .onChange(of: modeID) { appBundleID = nil }
     }
 
     static let modeSymbols = [
@@ -157,8 +176,11 @@ struct BindingsSettings: View {
         editing = binding
     }
 
-    private func addMode() {
-        let mode = Mode(name: "Mode \(model.configuration.modes.count + 1)", symbol: "star")
+    private func addMode(surface: Bool = false) {
+        let mode = surface
+            ? Mode(name: "Control \(model.configuration.modes.count + 1)",
+                   symbol: "slider.horizontal.below.square.and.square.filled", surface: ControlSurfaceLayout())
+            : Mode(name: "Mode \(model.configuration.modes.count + 1)", symbol: "star")
         model.configuration.modes.append(mode)
         modeID = mode.id
     }
@@ -225,5 +247,50 @@ extension Trigger {
         case .tap: "hand.tap"
         case let .press(tier, _, _): tier == .hard ? "hand.point.up.braille.fill" : "hand.point.up.braille"
         }
+    }
+}
+
+/// Picks the control on each edge of a control surface mode.
+private struct SurfaceLayoutEditor: View {
+    @Binding var layout: ControlSurfaceLayout
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Slide along an edge of the trackpad to change its control. Open it from the mode wheel (four-finger double tap); it closes after a few idle seconds or with Esc.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Grid(horizontalSpacing: 16, verticalSpacing: 12) {
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    picker(.top)
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                }
+                GridRow {
+                    picker(.left)
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(.secondary.opacity(0.5))
+                        .frame(width: 160, height: 100)
+                        .overlay(Image(systemName: "hand.point.up.left").foregroundStyle(.secondary))
+                    picker(.right)
+                }
+                GridRow {
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    picker(.bottom)
+                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                }
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func picker(_ edge: SurfaceEdge) -> some View {
+        Picker(edge.displayName, selection: $layout[edge]) {
+            ForEach(SurfaceControl.allCases, id: \.self) { control in
+                Label(control.displayName, systemImage: control.symbol).tag(control)
+            }
+        }
+        .frame(width: 190)
     }
 }
