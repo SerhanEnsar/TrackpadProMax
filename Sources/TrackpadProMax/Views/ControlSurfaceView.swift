@@ -16,25 +16,45 @@ struct ControlSurfaceView: View {
                 .overlay(RoundedRectangle(cornerRadius: 34).strokeBorder(.white.opacity(0.18), lineWidth: 1))
                 .shadow(color: .black.opacity(0.35), radius: 24, y: 8)
 
-            if state.surfaceLayout.isMusic {
-                NowPlayingCard(track: state.nowPlaying, modeName: state.surfaceName)
+            if let picker = state.devicePicker {
+                DevicePickerView(picker: picker)
+                    .transition(.scale(scale: 0.2, anchor: volumeAnchor).combined(with: .opacity))
             } else {
-                VStack(spacing: 4) {
-                    Text(state.surfaceName).font(.system(size: 20, weight: .bold, design: .rounded))
-                    Text("Slide along an edge · 4-finger double tap for modes")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+                Group {
+                    if state.surfaceLayout.isMusic {
+                        NowPlayingCard(track: state.nowPlaying, modeName: state.surfaceName)
+                    } else {
+                        VStack(spacing: 4) {
+                            Text(state.surfaceName).font(.system(size: 20, weight: .bold, design: .rounded))
+                            Text("Slide along an edge · hard-press volume for devices · 4-finger tap closes")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
-            bar(.left).frame(width: 52, height: 230).offset(x: -Self.size.width / 2 + 48)
-            bar(.right).frame(width: 52, height: 230).offset(x: Self.size.width / 2 - 48)
-            bar(.top).frame(width: 340, height: 48).offset(y: -Self.size.height / 2 + 42)
-            bar(.bottom).frame(width: 340, height: 48).offset(y: Self.size.height / 2 - 42)
+                    bar(.left).frame(width: 52, height: 230).offset(x: -Self.size.width / 2 + 48)
+                    bar(.right).frame(width: 52, height: 230).offset(x: Self.size.width / 2 - 48)
+                    bar(.top).frame(width: 340, height: 48).offset(y: -Self.size.height / 2 + 42)
+                    bar(.bottom).frame(width: 340, height: 48).offset(y: Self.size.height / 2 - 42)
+                }
+                .transition(.opacity)
+            }
         }
         .frame(width: Self.size.width, height: Self.size.height)
         .padding(30)
         .animation(.easeOut(duration: 0.12), value: state.activeEdge)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: state.devicePicker != nil)
+    }
+
+    /// Device bars grow out of wherever the volume bar sits.
+    private var volumeAnchor: UnitPoint {
+        switch SurfaceEdge.allCases.first(where: { state.surfaceLayout[$0] == .volume }) {
+        case .left: .leading
+        case .right: .trailing
+        case .top: .top
+        case .bottom: .bottom
+        case nil: .center
+        }
     }
 
     @ViewBuilder
@@ -54,23 +74,20 @@ struct ControlSurfaceView: View {
         .opacity(control == .none ? 0.35 : 1)
     }
 
+    /// Fill clipped by the bar's capsule, so it shrinks smoothly all the way to 0.
     private func fill(edge: SurfaceEdge, value: Double) -> some View {
         GeometryReader { geo in
             let v = min(1, max(0, value))
-            if edge.isVertical {
-                VStack {
-                    Spacer(minLength: 0)
-                    Capsule().fill(Color.accentColor.gradient).frame(height: max(geo.size.width, geo.size.height * v))
-                }
-                .opacity(v > 0 ? 1 : 0)
-            } else {
-                HStack {
-                    Capsule().fill(Color.accentColor.gradient).frame(width: max(geo.size.height, geo.size.width * v))
-                    Spacer(minLength: 0)
-                }
-                .opacity(v > 0 ? 1 : 0)
-            }
+            Rectangle()
+                .fill(Color.accentColor.gradient)
+                .frame(
+                    width: edge.isVertical ? geo.size.width : geo.size.width * v,
+                    height: edge.isVertical ? geo.size.height * v : geo.size.height
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: edge.isVertical ? .bottom : .leading)
         }
+        .clipShape(Capsule())
         .animation(.easeOut(duration: 0.08), value: value)
     }
 
@@ -172,6 +189,62 @@ private struct NowPlayingCard: View {
                 RoundedRectangle(cornerRadius: 12).fill(.black.opacity(0.2))
                 Image(systemName: "music.note").font(.system(size: 30)).foregroundStyle(.secondary)
             }
+        }
+    }
+}
+
+/// Output devices as volume bars; the highlighted one glows.
+private struct DevicePickerView: View {
+    let picker: OverlayState.DevicePickerState
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack(alignment: .bottom, spacing: 18) {
+                ForEach(Array(picker.devices.enumerated()), id: \.element.id) { index, device in
+                    deviceBar(device, highlighted: index == picker.highlighted)
+                }
+            }
+            Text("Slide sideways to choose · up/down for volume · press hard to switch · tap to go back")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 24)
+        .animation(.easeOut(duration: 0.15), value: picker.highlighted)
+    }
+
+    private func deviceBar(_ device: AudioOutputDevice, highlighted: Bool) -> some View {
+        let volume = picker.volumes[device.id] ?? 0
+        return VStack(spacing: 8) {
+            ZStack {
+                Capsule().fill(.black.opacity(0.18))
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(Color.accentColor.gradient)
+                        .frame(height: geo.size.height * min(1, max(0, volume)))
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                }
+                .clipShape(Capsule())
+                VStack {
+                    Image(systemName: device.symbol).font(.system(size: 18, weight: .semibold))
+                    Spacer()
+                    Text("\(Int((volume * 100).rounded()))").font(.caption.monospacedDigit().bold())
+                }
+                .padding(.vertical, 12)
+            }
+            .frame(width: 54, height: 190)
+            .overlay(Capsule().strokeBorder(highlighted ? Color.accentColor : .white.opacity(0.15), lineWidth: highlighted ? 2 : 1))
+            .shadow(color: highlighted ? .accentColor.opacity(0.8) : .clear, radius: 12)
+            .scaleEffect(highlighted ? 1.08 : 1)
+
+            Text(device.name)
+                .font(.caption.weight(highlighted ? .bold : .regular))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(width: 86, height: 30, alignment: .top)
+            Label("Playing", systemImage: "speaker.wave.2.fill")
+                .font(.caption2)
+                .foregroundStyle(Color.accentColor)
+                .opacity(device.isDefault ? 1 : 0)
         }
     }
 }

@@ -39,6 +39,8 @@ final class AppModel {
     @ObservationIgnored private var interaction: InteractionController!
     /// The gesture mode to return to when a control surface closes.
     @ObservationIgnored private var lastGestureModeID: UUID?
+    /// A 4-finger tap closes an overlay, but waits to see if it is a double tap.
+    @ObservationIgnored private var pendingOverlayClose: DispatchWorkItem?
 
     init() {
         configuration = store.load()
@@ -59,6 +61,7 @@ final class AppModel {
         }
         lastGestureModeID = configuration.activeModeID
         interaction = InteractionController(pipeline: pipeline)
+        interaction.deepPressThreshold = configuration.gestures.hardThreshold
         interaction.onSelectMode = { [weak self] id in self?.selectMode(id) }
         interaction.onSurfaceIdle = { [weak self] in self?.leaveControlSurface() }
 
@@ -154,10 +157,18 @@ final class AppModel {
 
     private func handle(_ event: GestureEvent) {
         if interaction.isActive {
-            // The overlay owns the trackpad; only the wheel gesture gets through.
-            if configuration.isEnabled,
-               shortcutMode?.binding(for: event.trigger, bundleID: nil)?.action == .modeWheel {
+            // The overlay owns the trackpad; only the wheel gesture and the
+            // 4-finger "close" tap get through.
+            guard configuration.isEnabled else { return }
+            if shortcutMode?.binding(for: event.trigger, bundleID: nil)?.action == .modeWheel {
+                pendingOverlayClose?.cancel()
+                pendingOverlayClose = nil
                 toggleModeWheel()
+            } else if case .tap(fingers: 4, count: 1, _) = event.trigger {
+                pendingOverlayClose?.cancel()
+                let close = DispatchWorkItem { [weak self] in self?.interaction.escape() }
+                pendingOverlayClose = close
+                DispatchQueue.main.asyncAfter(deadline: .now() + configuration.gestures.doubleTapInterval, execute: close)
             }
             return
         }
@@ -214,7 +225,10 @@ final class AppModel {
             leaveControlSurface()
         }
         dispatcher.configuration = configuration
-        if old.gestures != configuration.gestures { pipeline.settings = configuration.gestures }
+        if old.gestures != configuration.gestures {
+            pipeline.settings = configuration.gestures
+            interaction?.deepPressThreshold = configuration.gestures.hardThreshold
+        }
         if old.modeHotkey != configuration.modeHotkey || old.discovery.hotkey != configuration.discovery.hotkey {
             registerHotKey()
         }

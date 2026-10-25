@@ -115,6 +115,8 @@ public struct ControlSurfaceTracker: Sendable {
         case ended(SurfaceEdge)
         /// Quick touch in the middle, away from every edge band.
         case centerTap
+        /// Force crossed `deepPressThreshold` on a bar (once per touch).
+        case deepPress(SurfaceEdge)
     }
 
     /// Size of each edge band, as a fraction of width/height.
@@ -125,6 +127,10 @@ public struct ControlSurfaceTracker: Sendable {
     public var maxTapMovement = 0.03
     /// Multiplier on finger travel; >1 lets a shorter slide cover the range.
     public var gain = 1.4
+    /// Force for `.deepPress`; usually the hard-press threshold.
+    public var deepPressThreshold = 750.0
+    /// Max travel for a deep press, so pushing while sliding does not count.
+    public var maxDeepPressMovement = 0.06
 
     private var trackedID: Int?
     private var edge: SurfaceEdge?
@@ -134,8 +140,14 @@ public struct ControlSurfaceTracker: Sendable {
     private var movement = 0.0
     private var swipeAccumulator = 0.0
     private var swiped = false
+    private var deepPressed = false
+    /// A second finger landed: ignore everything until all fingers lift, so
+    /// multi-finger gestures (like the 4-finger wheel tap) never touch a bar.
+    private var multiFinger = false
 
-    public init() {}
+    public init(deepPressThreshold: Double = 750) {
+        self.deepPressThreshold = deepPressThreshold
+    }
 
     /// Edge band containing `point`, or nil for the middle. Corners go to
     /// the nearer edge.
@@ -149,6 +161,17 @@ public struct ControlSurfaceTracker: Sendable {
 
     public mutating func process(_ frame: TouchFrame) -> [Event] {
         let active = frame.activeTouches
+        if multiFinger {
+            if active.isEmpty { multiFinger = false }
+            return []
+        }
+        if active.count > 1 {
+            multiFinger = true
+            let open = trackedID != nil ? edge : nil
+            trackedID = nil
+            edge = nil
+            return open.map { [.ended($0)] } ?? []
+        }
         guard let touch = active.first(where: { $0.id == trackedID }) ?? (trackedID == nil ? active.first : nil) else {
             return end(at: frame.timestamp)
         }
@@ -161,16 +184,22 @@ public struct ControlSurfaceTracker: Sendable {
             movement = 0
             swipeAccumulator = 0
             swiped = false
+            deepPressed = false
             return edge.map { [.began($0)] } ?? []
         }
         movement = max(movement, start.distance(to: touch.position))
         guard let edge else { return [] }
+        var events: [Event] = []
+        if !deepPressed, touch.pressure >= deepPressThreshold, movement <= maxDeepPressMovement {
+            deepPressed = true
+            events.append(.deepPress(edge))
+        }
         let delta = edge.isVertical ? touch.position.y - last.y : touch.position.x - last.x
         last = touch.position
-        guard delta != 0 else { return [] }
+        guard delta != 0 else { return events }
 
         swipeAccumulator += delta
-        var events: [Event] = [.adjust(edge, delta * gain)]
+        events.append(.adjust(edge, delta * gain))
         if !swiped, abs(swipeAccumulator) >= swipeDistance {
             swiped = true
             events.append(.swipe(edge, swipeAccumulator > 0 ? 1 : -1))
@@ -182,7 +211,7 @@ public struct ControlSurfaceTracker: Sendable {
         guard trackedID != nil else { return [] }
         trackedID = nil
         defer { edge = nil }
-        let isTap = time - startTime <= maxTapDuration && movement <= maxTapMovement
+        let isTap = !deepPressed && time - startTime <= maxTapDuration && movement <= maxTapMovement
         guard let edge else { return isTap ? [.centerTap] : [] }
         if isTap {
             return [.tap(edge), .ended(edge)]

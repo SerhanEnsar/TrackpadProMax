@@ -14,6 +14,8 @@ final class InteractionController {
     var onSurfaceIdle: () -> Void = {}
 
     var surfaceIdleTimeout: TimeInterval = 5
+    /// Force for hard presses on surface bars; follows the hard-press setting.
+    var deepPressThreshold = 750.0
     var wheelIdleTimeout: TimeInterval = 8
 
     private(set) var isWheelOpen = false
@@ -41,6 +43,7 @@ final class InteractionController {
         input.onWheel = { [weak self] events, knob in self?.handleWheel(events, knob: knob) }
         input.onSurface = { [weak self] events in self?.handleSurface(events) }
         input.onActivity = { [weak self] in self?.restartIdleTimer() }
+        input.onDevices = { [weak self] events in self?.handleDevices(events) }
         pipeline.setFrameTap { [input] frame in input.process(frame) }
     }
 
@@ -118,7 +121,7 @@ final class InteractionController {
     private func restoreSurfaceAfterWheel() {
         guard let surfaceMode else { return }
         state.surfaceName = surfaceMode.name
-        input.install(.surface(ControlSurfaceTracker()), waitForLift: true)
+        input.install(.surface(newTracker()), waitForLift: true)
         surfacePanel.show(ControlSurfaceView(state: state))
         restartIdleTimer()
     }
@@ -133,7 +136,7 @@ final class InteractionController {
         startNowPlayingUpdates()
         inputLock.engage()
         if !isWheelOpen {
-            input.install(.surface(ControlSurfaceTracker()), waitForLift: !touchesAreUp)
+            input.install(.surface(newTracker()), waitForLift: !touchesAreUp)
             surfacePanel.show(ControlSurfaceView(state: state))
         }
         restartIdleTimer()
@@ -142,6 +145,7 @@ final class InteractionController {
     func exitSurface() {
         guard surfaceMode != nil else { return }
         surfaceMode = nil
+        state.devicePicker = nil
         nowPlayingTimer?.invalidate()
         nowPlayingTimer = nil
         surfacePanel.hide()
@@ -238,6 +242,11 @@ final class InteractionController {
             case let .ended(edge):
                 if state.activeEdge == edge { state.activeEdge = nil }
                 if state.surfaceLayout[edge] == .seek, let pendingSeek { scheduleSeek(pendingSeek, flush: true) }
+            case let .deepPress(edge):
+                if state.surfaceLayout[edge] == .volume {
+                    openDevicePicker()
+                    return
+                }
             case .centerTap:
                 if state.surfaceLayout.isMusic {
                     ActionPerformer.shared.perform(.system(.playPause))
@@ -262,9 +271,71 @@ final class InteractionController {
 
     // MARK: - Shared
 
+    // MARK: Output devices
+
+    private func openDevicePicker() {
+        let devices = AudioDevices.outputs()
+        guard !devices.isEmpty else { return }
+        let current = devices.firstIndex(where: \.isDefault) ?? 0
+        var volumes: [AudioOutputDevice.ID: Double] = [:]
+        for device in devices { volumes[device.id] = AudioDevices.volume(of: device.id) ?? 0 }
+        state.activeEdge = nil
+        state.devicePicker = .init(devices: devices, highlighted: current, volumes: volumes)
+        input.install(
+            .devices(DevicePicker(itemCount: devices.count, highlighted: current, deepPressThreshold: deepPressThreshold)),
+            waitForLift: true
+        )
+        HapticEngine.shared.play([.strong, .weak])
+        restartIdleTimer()
+    }
+
+    private func closeDevicePicker() {
+        guard state.devicePicker != nil else { return }
+        state.devicePicker = nil
+        refreshSurfaceValues()
+        input.install(.surface(newTracker()), waitForLift: true)
+        restartIdleTimer()
+    }
+
+    private func handleDevices(_ events: [DevicePicker.Event]) {
+        guard var picker = state.devicePicker else { return }
+        for event in events {
+            switch event {
+            case let .highlight(index):
+                picker.highlighted = index
+                HapticEngine.shared.play(.tick)
+            case let .adjust(index, delta):
+                let id = picker.devices[index].id
+                let old = picker.volumes[id] ?? 0
+                let value = min(1, max(0, old + delta))
+                picker.volumes[id] = value
+                AudioDevices.setVolume(value, for: id)
+                if step(value) != step(old) { HapticEngine.shared.play(value <= 0 || value >= 1 ? .medium : .tick) }
+            case let .activate(index):
+                let id = picker.devices[index].id
+                AudioDevices.makeDefault(id)
+                for i in picker.devices.indices { picker.devices[i].isDefault = picker.devices[i].id == id }
+                HapticEngine.shared.play(.heavyClick)
+                Log.action.notice("Output switched to \(picker.devices[index].name, privacy: .public)")
+            case .dismiss:
+                state.devicePicker = picker
+                closeDevicePicker()
+                return
+            }
+        }
+        state.devicePicker = picker
+        restartIdleTimer()
+    }
+
+    private func newTracker() -> ControlSurfaceTracker {
+        ControlSurfaceTracker(deepPressThreshold: deepPressThreshold)
+    }
+
     private var touchesAreUp: Bool { pipeline.latestFrame.activeTouches.isEmpty }
 
-    private func escape() {
+    /// Same as pressing Esc: closes the wheel, or leaves the surface (and its
+    /// device bars) entirely.
+    func escape() {
         if isWheelOpen {
             closeWheel()
         } else if surfaceMode != nil {
@@ -295,12 +366,14 @@ private final class OverlayInput: @unchecked Sendable {
         case none
         case wheel(RadialSelector)
         case surface(ControlSurfaceTracker)
+        case devices(DevicePicker)
     }
 
     // Set once on the main actor before frames flow; only called on the main actor.
     var onWheel: @MainActor @Sendable ([RadialSelector.Event], Point) -> Void = { _, _ in }
     var onSurface: @MainActor @Sendable ([ControlSurfaceTracker.Event]) -> Void = { _ in }
     var onActivity: @MainActor @Sendable () -> Void = {}
+    var onDevices: @MainActor @Sendable ([DevicePicker.Event]) -> Void = { _ in }
 
     private let lock = NSLock()
     private var kind = Kind.none
@@ -343,6 +416,17 @@ private final class OverlayInput: @unchecked Sendable {
             if !events.isEmpty || moved {
                 let callback = onWheel
                 Task { @MainActor in callback(events, knob) }
+            }
+        case var .devices(picker):
+            let events = picker.process(frame)
+            kind = .devices(picker)
+            lock.unlock()
+            if !events.isEmpty {
+                let callback = onDevices
+                Task { @MainActor in callback(events) }
+            } else if ping {
+                let callback = onActivity
+                Task { @MainActor in callback() }
             }
         case var .surface(tracker):
             let events = tracker.process(frame)

@@ -113,9 +113,91 @@ private func line(from a: Point, to b: Point, steps: Int = 30) -> [Point] {
         #expect(swipes == [.swipe(.top, 1)])
     }
 
+    @Test func multiFingerTouchIsIgnored() {
+        // A 4-finger tap in the middle must not count as a center tap.
+        var frames: [TouchFrame] = (0..<8).map { i in
+            TouchFrame(timestamp: Double(i) * 0.01, touches: (0..<4).map {
+                Touch(id: $0, phase: .touching, position: Point(x: 0.4 + Double($0) * 0.05, y: 0.5))
+            })
+        }
+        frames.append(TouchFrame(timestamp: 0.1, touches: []))
+        #expect(run(frames).isEmpty)
+    }
+
+    @Test func secondFingerEndsBarInteraction() {
+        var frames = slide(line(from: Point(x: 0.92, y: 0.3), to: Point(x: 0.92, y: 0.5), steps: 10))
+        frames.removeLast()
+        frames.append(TouchFrame(timestamp: 0.2, touches: [
+            Touch(id: 1, phase: .touching, position: Point(x: 0.92, y: 0.5)),
+            Touch(id: 2, phase: .touching, position: Point(x: 0.5, y: 0.5)),
+        ]))
+        frames.append(TouchFrame(timestamp: 0.21, touches: [
+            Touch(id: 1, phase: .touching, position: Point(x: 0.92, y: 0.8)),
+            Touch(id: 2, phase: .touching, position: Point(x: 0.5, y: 0.5)),
+        ]))
+        frames.append(TouchFrame(timestamp: 0.3, touches: []))
+        let events = run(frames)
+        #expect(events.last == .ended(.right))
+        #expect(events.filter { $0 == .ended(.right) }.count == 1)
+    }
+
+    @Test func deepPressFiresOnceAndIsNotTap() {
+        let frames = (0..<10).map { i in
+            TouchFrame(timestamp: Double(i) * 0.01, touches: [
+                Touch(id: 1, phase: .touching, position: Point(x: 0.92, y: 0.5), pressure: i < 3 ? 100 : 900),
+            ])
+        } + [TouchFrame(timestamp: 0.1, touches: [])]
+        let events = run(frames)
+        #expect(events == [.began(.right), .deepPress(.right), .ended(.right)])
+    }
+
     @Test func layoutDecodesMissingKeysAsDefaults() throws {
         let layout = try JSONDecoder().decode(ControlSurfaceLayout.self, from: Data(#"{"right":"brightness"}"#.utf8))
         #expect(layout.right == .brightness)
         #expect(layout.left == ControlSurfaceLayout().left)
+    }
+}
+
+@Suite struct DevicePickerTests {
+    func run(_ picker: inout DevicePicker, _ frames: [TouchFrame]) -> [DevicePicker.Event] {
+        frames.flatMap { picker.process($0) }
+    }
+
+    @Test func slidingRightStepsAndClampsAtEnd() {
+        var picker = DevicePicker(itemCount: 3, highlighted: 0)
+        let events = run(&picker, slide(line(from: Point(x: 0.1, y: 0.5), to: Point(x: 0.9, y: 0.5), steps: 40)))
+        #expect(events == [.highlight(1), .highlight(2)])
+        #expect(picker.highlighted == 2)
+    }
+
+    @Test func verticalSlideAdjustsHighlighted() {
+        var picker = DevicePicker(itemCount: 3, highlighted: 1)
+        let events = run(&picker, slide(line(from: Point(x: 0.5, y: 0.3), to: Point(x: 0.5, y: 0.5), steps: 10)))
+        let total = events.reduce(0.0) { sum, event in
+            if case let .adjust(1, delta) = event { sum + delta } else { sum }
+        }
+        #expect(abs(total - 0.2 * 1.4) < 0.001)
+    }
+
+    @Test func hardPressActivatesAndTapDismisses() {
+        var picker = DevicePicker(itemCount: 2, highlighted: 1)
+        let press = (0..<10).map { i in
+            TouchFrame(timestamp: Double(i) * 0.01, touches: [
+                Touch(id: 1, phase: .touching, position: Point(x: 0.5, y: 0.5), pressure: i < 3 ? 100 : 900),
+            ])
+        } + [TouchFrame(timestamp: 0.1, touches: [])]
+        #expect(run(&picker, press) == [.activate(1)])
+        let tap = slide(Array(repeating: Point(x: 0.5, y: 0.5), count: 8), id: 2, start: 1)
+        #expect(run(&picker, tap) == [.dismiss])
+    }
+
+    @Test func multiFingerIsIgnored() {
+        var picker = DevicePicker(itemCount: 2, highlighted: 0)
+        let frames = (0..<8).map { i in
+            TouchFrame(timestamp: Double(i) * 0.01, touches: (0..<4).map {
+                Touch(id: $0, phase: .touching, position: Point(x: 0.3 + Double(i) * 0.05, y: 0.5))
+            })
+        } + [TouchFrame(timestamp: 0.1, touches: [])]
+        #expect(run(&picker, frames).isEmpty)
     }
 }

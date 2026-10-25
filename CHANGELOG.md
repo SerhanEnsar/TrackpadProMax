@@ -5,7 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+- Surface bars now fill smoothly all the way down to 0 % (they used to stop moving below about 22 %).
+- Multi-finger touches no longer trigger surface bars or the middle play/pause tap.
+
 ### Added
+- Output devices on the trackpad: hard-press the volume bar of a surface and your outputs (AirPods, Bluetooth speakers, built-in…) grow into bars. Slide sideways to pick one, up/down for its volume, press hard to route sound there, tap to go back.
+- A single four-finger tap closes any surface or the mode wheel, like Esc; a double tap still opens the wheel.
 - Mode wheel: four-finger double tap opens a radial wheel; slide to pick a mode with haptic ticks, tap to switch, tap in the middle to cancel.
 - Surface modes: the trackpad turns into an on-screen touch panel. Edge bars set volume, display brightness and keyboard backlight directly, with haptic detents.
 - Media mode is now a music surface: now-playing card, scrubbing along the bottom edge, track swipes, tap to play/pause (MediaRemote, with Music/Spotify AppleScript fallback).

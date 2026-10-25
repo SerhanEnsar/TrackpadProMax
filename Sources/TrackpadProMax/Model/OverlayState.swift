@@ -22,6 +22,15 @@ final class OverlayState {
     var surfaceLayout = ControlSurfaceLayout()
     var surfaceValues: [SurfaceEdge: Double] = [:]
     var activeEdge: SurfaceEdge?
+    struct DevicePickerState {
+        var devices: [AudioOutputDevice]
+        var highlighted: Int
+        var volumes: [AudioOutputDevice.ID: Double]
+    }
+
+    /// Output-device bars, opened by a hard press on the volume bar.
+    var devicePicker: DevicePickerState?
+
     /// Shown in the middle of music surfaces.
     var nowPlaying: NowPlaying?
     /// Briefly set after a media tap/swipe for visual feedback.
