@@ -7,13 +7,10 @@ import TrackpadCore
 @MainActor
 @Observable
 final class OverlayState {
-    struct WheelItem: Identifiable, Equatable {
-        let id: UUID
-        let name: String
-        let symbol: String
-    }
-
     var wheelItems: [WheelItem] = []
+    var wheelTitle = "TrackPadPM"
+    /// The gesture-mode folder: its middle means Back instead of Cancel.
+    var wheelIsSubmenu = false
     var wheelHighlighted: Int?
     var wheelKnob = Point(x: 0, y: 0)
     var wheelActive: Int?

@@ -20,7 +20,7 @@ final class InteractionController {
 
     private(set) var isWheelOpen = false
     private(set) var surfaceMode: Mode?
-    var isActive: Bool { isWheelOpen || surfaceMode != nil }
+    var isActive: Bool { isWheelOpen || surfaceMode != nil || toolMode != nil }
 
     private let pipeline: TouchPipeline
     private let inputLock = InputLock()
@@ -51,25 +51,47 @@ final class InteractionController {
 
     // MARK: - Mode wheel
 
-    func toggleWheel(modes: [Mode], activeID: UUID) {
-        isWheelOpen ? closeWheel() : openWheel(modes: modes, activeID: activeID)
+    enum WheelLevel { case main, gestures }
+    private(set) var wheelLevel = WheelLevel.main
+    private var wheelConfiguration: Configuration?
+    private var wheelActiveID: UUID?
+
+    func toggleWheel(configuration: Configuration, activeID: UUID) {
+        isWheelOpen ? closeWheel() : openWheel(configuration: configuration, activeID: activeID)
     }
 
-    func openWheel(modes: [Mode], activeID: UUID) {
-        guard !modes.isEmpty else { return }
-        let active = modes.firstIndex { $0.id == activeID }
-        state.wheelItems = modes.map { .init(id: $0.id, name: $0.name, symbol: $0.symbol) }
-        state.wheelActive = active
-        state.wheelHighlighted = nil
-        state.wheelKnob = Point(x: 0, y: 0)
+    func openWheel(configuration: Configuration, activeID: UUID) {
+        guard !WheelMenu.main(configuration).isEmpty else { return }
+        wheelConfiguration = configuration
+        wheelActiveID = activeID
         isWheelOpen = true
         // The wheel replaces the surface on screen; cancelling brings it back.
         surfacePanel.hide()
-        input.install(.wheel(RadialSelector(itemCount: modes.count)), waitForLift: !touchesAreUp)
+        showWheelLevel(.main, waitForLift: !touchesAreUp)
         inputLock.engage()
         wheelPanel.show(ModeWheelView(state: state))
         HapticEngine.shared.play(.weak)
         restartIdleTimer()
+    }
+
+    /// Fills the wheel with the main menu or the gesture-mode folder.
+    private func showWheelLevel(_ level: WheelLevel, waitForLift: Bool) {
+        guard let configuration = wheelConfiguration else { return }
+        wheelLevel = level
+        let items = level == .main ? WheelMenu.main(configuration) : WheelMenu.gestures(configuration)
+        let activeIsGesture = configuration.gestureModes.contains { $0.id == wheelActiveID }
+        state.wheelItems = items
+        state.wheelActive = items.firstIndex { item in
+            switch item.target {
+            case .gestureFolder: activeIsGesture
+            case let .mode(id): id == wheelActiveID
+            }
+        }
+        state.wheelTitle = level == .main ? "TrackPadPM" : WheelMenu.folderName
+        state.wheelIsSubmenu = level == .gestures
+        state.wheelHighlighted = nil
+        state.wheelKnob = Point(x: 0, y: 0)
+        input.install(.wheel(RadialSelector(itemCount: max(1, items.count))), waitForLift: waitForLift)
     }
 
     /// `restoreSurface: false` when a mode was picked: the caller switches
@@ -102,20 +124,48 @@ final class InteractionController {
                 state.wheelHighlighted = index
                 HapticEngine.shared.play(.tick)
             case let .confirm(index):
-                let picked = index.flatMap { state.wheelItems.indices.contains($0) ? state.wheelItems[$0].id : nil }
-                HapticEngine.shared.play(picked == nil ? .weak : .click)
-                guard let picked else {
-                    closeWheel()
-                    return
+                let item = index.flatMap { state.wheelItems.indices.contains($0) ? state.wheelItems[$0] : nil }
+                switch item?.target {
+                case nil:
+                    HapticEngine.shared.play(.weak)
+                    if wheelLevel == .gestures {
+                        // The folder's middle is Back.
+                        showWheelLevel(.main, waitForLift: true)
+                        restartIdleTimer()
+                    } else {
+                        closeWheel()
+                    }
+                case .gestureFolder:
+                    HapticEngine.shared.play(.click)
+                    showWheelLevel(.gestures, waitForLift: true)
+                    restartIdleTimer()
+                case let .mode(picked):
+                    HapticEngine.shared.play(.click)
+                    closeWheel(restoreSurface: false)
+                    onSelectMode(picked)
+                    // Picked the surface that was already active: show it again.
+                    if surfaceMode != nil, !surfacePanel.isVisible { restoreSurfaceAfterWheel() }
                 }
-                closeWheel(restoreSurface: false)
-                onSelectMode(picked)
-                // Picked the surface that was already active: show it again.
-                if surfaceMode != nil, !surfacePanel.isVisible { restoreSurfaceAfterWheel() }
                 return
             }
         }
         restartIdleTimer()
+    }
+
+    // MARK: - Tools
+
+    private(set) var toolMode: Mode?
+
+    func enterTool(_ mode: Mode) {
+        guard let tool = mode.tool else { return }
+        toolMode = mode
+        Log.action.notice("Tool \(tool.rawValue, privacy: .public) is not available yet")
+        onSurfaceIdle()
+    }
+
+    func exitTool() {
+        guard toolMode != nil else { return }
+        toolMode = nil
     }
 
     // MARK: - Control surface

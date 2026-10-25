@@ -56,7 +56,7 @@ final class AppModel {
         ActionPerformer.shared.onModeWheel = { [weak self] in self?.toggleModeWheel() }
 
         // Never start inside a control surface: it freezes the cursor.
-        if configuration.activeMode.isControlSurface, let first = configuration.gestureModes.first {
+        if configuration.activeMode.isOverlay, let first = configuration.gestureModes.first {
             configuration.activeModeID = first.id
         }
         lastGestureModeID = configuration.activeModeID
@@ -98,13 +98,20 @@ final class AppModel {
 
     func selectMode(_ id: UUID) {
         guard let mode = configuration.modes.first(where: { $0.id == id }) else { return }
-        if mode.isControlSurface {
+        if mode.isOverlay {
             guard id != configuration.activeModeID else { return }
+            interaction.exitSurface()
+            interaction.exitTool()
             configuration.activeModeID = id
-            interaction.enterSurface(mode)
+            if mode.isControlSurface {
+                interaction.enterSurface(mode)
+            } else {
+                interaction.enterTool(mode)
+            }
             HapticEngine.shared.play([.weak, .strong])
         } else {
             interaction.exitSurface()
+            interaction.exitTool()
             lastGestureModeID = id
             guard id != configuration.activeModeID else { return }
             configuration.activeModeID = id
@@ -114,7 +121,7 @@ final class AppModel {
 
     func toggleModeWheel() {
         guard configuration.isEnabled else { return }
-        interaction.toggleWheel(modes: configuration.modes, activeID: configuration.activeModeID)
+        interaction.toggleWheel(configuration: configuration, activeID: configuration.activeModeID)
     }
 
     /// Back to the gesture mode that was active before the control surface.
@@ -200,7 +207,7 @@ final class AppModel {
 
     /// Shows the discovery card the first time a freshly launched app comes forward.
     private func announceGestures(in app: NSRunningApplication?) {
-        guard let app, configuration.isEnabled, !activeMode.isControlSurface else { return }
+        guard let app, configuration.isEnabled, !activeMode.isOverlay else { return }
         let running = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
         discoveryPolicy.prune(keeping: running)
         guard let bindings = discoveryPolicy.gesturesToAnnounce(

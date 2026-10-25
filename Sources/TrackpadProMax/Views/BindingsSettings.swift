@@ -33,6 +33,7 @@ struct BindingsSettings: View {
                         }
                     }
                     Divider()
+                    Button("New Gesture Mode") { addMode() }
                     Button("New Surface Mode") { addMode(surface: true) }
                     Button("Duplicate Mode") { duplicateMode(modeIndex) }
                     Button("Delete Mode", role: .destructive) { deleteMode(modeIndex) }
@@ -57,7 +58,17 @@ struct BindingsSettings: View {
                 }
             }
 
-            if isSurface(modeIndex) {
+            if let tool = model.configuration.modes[modeIndex].tool {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label(tool.defaultName, systemImage: tool.symbol).font(.title3.bold())
+                    Text(tool.summary).foregroundStyle(.secondary)
+                    Text("Open it from the mode wheel (four-finger double tap). A four-finger tap or Esc closes it.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else if isSurface(modeIndex) {
                 SurfaceLayoutEditor(layout: Binding(
                     get: { model.configuration.modes[modeIndex].surface ?? ControlSurfaceLayout() },
                     set: { model.configuration.modes[modeIndex].surface = $0 }
@@ -83,8 +94,9 @@ struct BindingsSettings: View {
         .onChange(of: modeID) { appBundleID = nil }
     }
 
+    /// Surfaces and tools have no per-app gesture lists.
     private func isSurface(_ modeIndex: Int) -> Bool {
-        model.configuration.modes[modeIndex].isControlSurface
+        model.configuration.modes[modeIndex].isOverlay
     }
 
     @ViewBuilder

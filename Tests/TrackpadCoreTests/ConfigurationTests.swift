@@ -70,7 +70,7 @@ import Testing
                      "doubleTapInterval":0.3,"zoneMargin":0.18}}
         """
         let config = try JSONDecoder().decode(Configuration.self, from: Data(json.utf8))
-        #expect(config.modes.map(\.name) == ["Only", "Control"], "migration adds the Control surface")
+        #expect(config.modes.map(\.name).prefix(2) == ["Only", "Control"], "migration adds the Control surface, then tools")
         #expect(config.gestures == GestureSettings(), "pre-0.1 default thresholds are migrated")
         #expect(config.modeHotkey == Configuration.defaults.modeHotkey)
         #expect(config.schemaVersion == Configuration.currentSchemaVersion)
@@ -121,7 +121,7 @@ import Testing
 
     @Test func defaultsHaveOneGestureMode() {
         #expect(Configuration.defaults.gestureModes.map(\.name) == ["Normal"])
-        #expect(Configuration.defaults.modes.map(\.name) == ["Normal", "Media", "Control"])
+        #expect(Configuration.defaults.modes.map(\.name) == ["Normal", "Media", "Control", "Windows", "Apps", "Timer", "Quick Settings"])
     }
 
     @Test func v3MediaMiddleBecomesBack() throws {

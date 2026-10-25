@@ -40,19 +40,26 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
     /// Non-nil for a control surface mode: the whole trackpad becomes edge
     /// bars (volume, brightness, …) and gesture bindings are not used.
     public var surface: ControlSurfaceLayout?
+    /// Non-nil for a tool mode (window tiling, app launcher, …).
+    public var tool: ModeTool?
 
     public init(
         name: String, symbol: String, bindings: [GestureBinding] = [], appProfiles: [AppProfile] = [],
-        surface: ControlSurfaceLayout? = nil
+        surface: ControlSurfaceLayout? = nil, tool: ModeTool? = nil
     ) {
         self.name = name
         self.symbol = symbol
         self.bindings = bindings
         self.appProfiles = appProfiles
         self.surface = surface
+        self.tool = tool
     }
 
     public var isControlSurface: Bool { surface != nil }
+
+    /// Surfaces and tools take over the whole trackpad with an overlay;
+    /// everything else is a gesture mode.
+    public var isOverlay: Bool { surface != nil || tool != nil }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -62,6 +69,7 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
         bindings = try c.decodeIfPresent([GestureBinding].self, forKey: .bindings) ?? []
         appProfiles = try c.decodeIfPresent([AppProfile].self, forKey: .appProfiles) ?? []
         surface = try c.decodeIfPresent(ControlSurfaceLayout.self, forKey: .surface)
+        tool = try? c.decodeIfPresent(ModeTool.self, forKey: .tool)
     }
 
     /// Bindings that apply in `bundleID`, app-specific first.
@@ -81,7 +89,7 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
 /// Everything the user can configure. Persisted as JSON.
 public struct Configuration: Sendable, Codable, Equatable {
     /// Bumped when stored values need migrating. See `migrate()`.
-    public static let currentSchemaVersion = 4
+    public static let currentSchemaVersion = 5
 
     public var schemaVersion = Configuration.currentSchemaVersion
     public var isEnabled = true
@@ -157,6 +165,12 @@ public struct Configuration: Sendable, Codable, Equatable {
                 modes[index].surface?.center = .back
             }
         }
+        if schemaVersion < 5 {
+            // 0.2: tools join the mode wheel.
+            for tool in ModeTool.allCases where !modes.contains(where: { $0.tool == tool }) {
+                modes.append(tool.defaultMode)
+            }
+        }
         schemaVersion = Self.currentSchemaVersion
     }
 
@@ -168,7 +182,7 @@ public struct Configuration: Sendable, Codable, Equatable {
     }
 
     /// The modes that use gesture bindings, i.e. not control surfaces.
-    public var gestureModes: [Mode] { modes.filter { !$0.isControlSurface } }
+    public var gestureModes: [Mode] { modes.filter { !$0.isOverlay } }
 
     public mutating func selectNextMode() {
         let index = modes.firstIndex { $0.id == activeModeID } ?? 0
@@ -184,7 +198,7 @@ public struct Configuration: Sendable, Codable, Equatable {
             GestureBinding(trigger: .tap(fingers: 4, count: 2, zone: .anywhere), action: .modeWheel),
         ])
         let media = Mode(name: "Media", symbol: "play.circle", surface: .music)
-        return Configuration(modes: [normal, media, controlMode])
+        return Configuration(modes: [normal, media, controlMode] + ModeTool.allCases.map(\.defaultMode))
     }
 
     static var controlMode: Mode {

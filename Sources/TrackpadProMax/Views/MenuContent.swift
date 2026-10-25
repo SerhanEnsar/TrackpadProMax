@@ -37,7 +37,7 @@ struct MenuContent: View {
                         Label(mode.name, systemImage: mode.symbol).tag(mode.id)
                     }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .labelsHidden()
                 if let hotkey = model.configuration.modeHotkey {
                     Text("Mode wheel: 4-finger double tap or \(KeyNames.describe(hotkey))")
@@ -102,7 +102,7 @@ private struct ActiveBindingsList: View {
                     .buttonStyle(.borderless)
                     .help("Show the gesture card for this app")
             }
-            if model.activeMode.isControlSurface {
+            if model.activeMode.isOverlay {
                 Text("Surface mode: slide along the trackpad's edges.").font(.callout).foregroundStyle(.secondary)
             } else if bindings.isEmpty {
                 Text("No gestures in this mode.").font(.callout).foregroundStyle(.secondary)

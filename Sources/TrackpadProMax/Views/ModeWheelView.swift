@@ -34,7 +34,7 @@ struct ModeWheelView: View {
         .animation(.easeOut(duration: 0.12), value: state.wheelHighlighted)
     }
 
-    private func label(for item: OverlayState.WheelItem, index: Int, highlighted: Bool) -> some View {
+    private func label(for item: WheelItem, index: Int, highlighted: Bool) -> some View {
         let angle = RadialSelector.angle(of: index, count: state.wheelItems.count)
         let distance = radius * 0.71
         return VStack(spacing: 4) {
@@ -43,6 +43,9 @@ struct ModeWheelView: View {
             Text(item.name)
                 .font(.system(size: 13, weight: highlighted ? .bold : .medium))
                 .lineLimit(1)
+            if item.target == .gestureFolder {
+                Image(systemName: "ellipsis").font(.system(size: 10, weight: .bold)).opacity(0.7)
+            }
             if state.wheelActive == index {
                 Circle().frame(width: 5, height: 5)
             }
@@ -54,7 +57,12 @@ struct ModeWheelView: View {
 
     private var center: some View {
         VStack(spacing: 3) {
-            Text("TrackPadPM")
+            if state.wheelIsSubmenu {
+                Image(systemName: "chevron.backward")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            Text(state.wheelTitle)
                 .font(.system(size: 17, weight: .heavy, design: .rounded))
             Text(subtitle)
                 .font(.caption)
@@ -68,6 +76,8 @@ struct ModeWheelView: View {
     private var subtitle: String {
         if let index = state.wheelHighlighted, state.wheelItems.indices.contains(index) {
             "Tap for \(state.wheelItems[index].name)"
+        } else if state.wheelIsSubmenu {
+            "Slide to pick · tap to go back"
         } else {
             "Slide to pick · tap to cancel"
         }
