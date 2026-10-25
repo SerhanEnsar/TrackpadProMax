@@ -37,12 +37,31 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
     public var symbol: String
     public var bindings: [GestureBinding]
     public var appProfiles: [AppProfile]
+    /// Non-nil for a control surface mode: the whole trackpad becomes edge
+    /// bars (volume, brightness, …) and gesture bindings are not used.
+    public var surface: ControlSurfaceLayout?
 
-    public init(name: String, symbol: String, bindings: [GestureBinding] = [], appProfiles: [AppProfile] = []) {
+    public init(
+        name: String, symbol: String, bindings: [GestureBinding] = [], appProfiles: [AppProfile] = [],
+        surface: ControlSurfaceLayout? = nil
+    ) {
         self.name = name
         self.symbol = symbol
         self.bindings = bindings
         self.appProfiles = appProfiles
+        self.surface = surface
+    }
+
+    public var isControlSurface: Bool { surface != nil }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decode(String.self, forKey: .name)
+        symbol = try c.decodeIfPresent(String.self, forKey: .symbol) ?? "star"
+        bindings = try c.decodeIfPresent([GestureBinding].self, forKey: .bindings) ?? []
+        appProfiles = try c.decodeIfPresent([AppProfile].self, forKey: .appProfiles) ?? []
+        surface = try c.decodeIfPresent(ControlSurfaceLayout.self, forKey: .surface)
     }
 
     /// Bindings that apply in `bundleID`, app-specific first.
@@ -62,7 +81,7 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
 /// Everything the user can configure. Persisted as JSON.
 public struct Configuration: Sendable, Codable, Equatable {
     /// Bumped when stored values need migrating. See `migrate()`.
-    public static let currentSchemaVersion = 1
+    public static let currentSchemaVersion = 2
 
     public var schemaVersion = Configuration.currentSchemaVersion
     public var isEnabled = true
@@ -112,6 +131,18 @@ public struct Configuration: Sendable, Codable, Equatable {
             (old.lightThreshold, old.mediumThreshold, old.hardThreshold, old.maxTapMovement) = (60, 220, 420, 0.03)
             if gestures == old { gestures = GestureSettings() }
         }
+        if schemaVersion < 2 {
+            // 0.2: the four-finger double tap opens the mode wheel instead of
+            // cycling modes, and a Control surface mode joins the defaults.
+            for index in modes.indices {
+                for b in modes[index].bindings.indices where modes[index].bindings[b].action == .nextMode {
+                    modes[index].bindings[b].action = .modeWheel
+                }
+            }
+            if !modes.contains(where: \.isControlSurface) {
+                modes.append(Self.controlMode)
+            }
+        }
         schemaVersion = Self.currentSchemaVersion
     }
 
@@ -121,6 +152,9 @@ public struct Configuration: Sendable, Codable, Equatable {
             if let index = modes.firstIndex(where: { $0.id == newValue.id }) { modes[index] = newValue }
         }
     }
+
+    /// The modes that use gesture bindings, i.e. not control surfaces.
+    public var gestureModes: [Mode] { modes.filter { !$0.isControlSurface } }
 
     public mutating func selectNextMode() {
         let index = modes.firstIndex { $0.id == activeModeID } ?? 0
@@ -133,7 +167,7 @@ public struct Configuration: Sendable, Codable, Equatable {
             GestureBinding(trigger: .press(tier: .hard, fingers: 1, zone: .topRight), action: .system(.missionControl)),
             GestureBinding(trigger: .press(tier: .hard, fingers: 1, zone: .topLeft), action: .system(.showDesktop)),
             GestureBinding(trigger: .press(tier: .hard, fingers: 1, zone: .bottomRight), action: .system(.screenshot)),
-            GestureBinding(trigger: .tap(fingers: 4, count: 2, zone: .anywhere), action: .nextMode),
+            GestureBinding(trigger: .tap(fingers: 4, count: 2, zone: .anywhere), action: .modeWheel),
         ])
         let media = Mode(name: "Media", symbol: "play.circle", bindings: [
             GestureBinding(trigger: .press(tier: .hard, fingers: 1, zone: .center), action: .system(.playPause)),
@@ -142,8 +176,12 @@ public struct Configuration: Sendable, Codable, Equatable {
             GestureBinding(trigger: .press(tier: .medium, fingers: 1, zone: .topEdge), action: .system(.volumeUp)),
             GestureBinding(trigger: .press(tier: .medium, fingers: 1, zone: .bottomEdge), action: .system(.volumeDown)),
             GestureBinding(trigger: .tap(fingers: 3, count: 1, zone: .anywhere), action: .system(.mute)),
-            GestureBinding(trigger: .tap(fingers: 4, count: 2, zone: .anywhere), action: .nextMode),
+            GestureBinding(trigger: .tap(fingers: 4, count: 2, zone: .anywhere), action: .modeWheel),
         ])
-        return Configuration(modes: [normal, media])
+        return Configuration(modes: [normal, media, controlMode])
+    }
+
+    static var controlMode: Mode {
+        Mode(name: "Control", symbol: "slider.horizontal.below.square.and.square.filled", surface: ControlSurfaceLayout())
     }
 }

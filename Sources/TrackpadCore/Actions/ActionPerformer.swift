@@ -11,6 +11,8 @@ public final class ActionPerformer {
 
     /// Called for `.nextMode`; owned by the app layer.
     public var onNextMode: (() -> Void)?
+    /// Called for `.modeWheel`; owned by the app layer.
+    public var onModeWheel: (() -> Void)?
 
     private init() {}
 
@@ -43,6 +45,8 @@ public final class ActionPerformer {
             runAppleScript(source)
         case .nextMode:
             onNextMode?()
+        case .modeWheel:
+            onModeWheel?()
         }
     }
 

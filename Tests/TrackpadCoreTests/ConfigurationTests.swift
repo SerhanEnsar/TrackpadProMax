@@ -70,7 +70,7 @@ import Testing
                      "doubleTapInterval":0.3,"zoneMargin":0.18}}
         """
         let config = try JSONDecoder().decode(Configuration.self, from: Data(json.utf8))
-        #expect(config.modes.map(\.name) == ["Only"])
+        #expect(config.modes.map(\.name) == ["Only", "Control"], "migration adds the Control surface")
         #expect(config.gestures == GestureSettings(), "pre-0.1 default thresholds are migrated")
         #expect(config.modeHotkey == Configuration.defaults.modeHotkey)
         #expect(config.schemaVersion == Configuration.currentSchemaVersion)
@@ -82,5 +82,24 @@ import Testing
         old.schemaVersion = 0
         let data = try JSONEncoder().encode(old)
         #expect(try JSONDecoder().decode(Configuration.self, from: data).gestures.hardThreshold == 999)
+    }
+
+    @Test func v1ConfigMigratesToWheelAndControlMode() throws {
+        var old = Configuration(modes: [Mode(name: "Mine", symbol: "star", bindings: [
+            GestureBinding(trigger: .tap(fingers: 4, count: 2, zone: .anywhere), action: .nextMode),
+        ])])
+        old.schemaVersion = 1
+        let config = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(old))
+        #expect(config.modes[0].bindings[0].action == .modeWheel)
+        #expect(config.modes.filter(\.isControlSurface).count == 1)
+        #expect(config.gestureModes.map(\.name) == ["Mine"])
+    }
+
+    @Test func surfaceLayoutRoundTrips() throws {
+        var config = Configuration.defaults
+        let index = config.modes.firstIndex(where: \.isControlSurface)!
+        config.modes[index].surface?.top = .volume
+        let decoded = try JSONDecoder().decode(Configuration.self, from: JSONEncoder().encode(config))
+        #expect(decoded.modes[index].surface?.top == .volume)
     }
 }

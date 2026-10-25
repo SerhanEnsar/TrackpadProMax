@@ -132,6 +132,7 @@ struct ActionDraft {
         case url = "Open URL"
         case shortcutsApp = "Run Shortcut"
         case script = "AppleScript"
+        case modeWheel = "Open mode wheel"
         case nextMode = "Next trackpad mode"
     }
 
@@ -154,6 +155,7 @@ struct ActionDraft {
         case let .runShortcut(name): kind = .shortcutsApp; shortcutName = name
         case let .appleScript(source): kind = .script; script = source
         case .nextMode: kind = .nextMode
+        case .modeWheel: kind = .modeWheel
         }
     }
 
@@ -164,7 +166,7 @@ struct ActionDraft {
         case .url: URL(string: url)?.scheme != nil && url.count > 8
         case .shortcutsApp: !shortcutName.trimmingCharacters(in: .whitespaces).isEmpty
         case .script: !script.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .click, .system, .nextMode: true
+        case .click, .system, .nextMode, .modeWheel: true
         }
     }
 
@@ -178,6 +180,7 @@ struct ActionDraft {
         case .shortcutsApp: .runShortcut(name: shortcutName.trimmingCharacters(in: .whitespaces))
         case .script: .appleScript(source: script)
         case .nextMode: .nextMode
+        case .modeWheel: .modeWheel
         }
     }
 }
@@ -218,7 +221,10 @@ private struct ActionFields: View {
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 110)
         case .nextMode:
-            Text("Cycles to the next mode, same as the mode shortcut.")
+            Text("Switches straight to the next mode.")
+                .foregroundStyle(.secondary)
+        case .modeWheel:
+            Text("Opens the mode wheel: slide to pick a mode, tap to switch.")
                 .foregroundStyle(.secondary)
         }
     }

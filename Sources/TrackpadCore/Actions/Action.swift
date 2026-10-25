@@ -53,6 +53,8 @@ public enum Action: Hashable, Sendable, Codable {
     case appleScript(source: String)
     /// Cycles to the next trackpad mode.
     case nextMode
+    /// Opens the radial mode wheel.
+    case modeWheel
 
     public var displayName: String {
         switch self {
@@ -64,6 +66,7 @@ public enum Action: Hashable, Sendable, Codable {
         case let .runShortcut(name): "Run shortcut “\(name)”"
         case .appleScript: "Run AppleScript"
         case .nextMode: "Next trackpad mode"
+        case .modeWheel: "Mode wheel"
         }
     }
 }
