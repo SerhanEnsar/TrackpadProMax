@@ -18,9 +18,6 @@ final class AppModel {
     }
     private(set) var frontmostApp: NSRunningApplication?
     private(set) var recentGestures: [FiredGesture] = []
-    /// When the running timer ends, and the seconds left (refreshed each second).
-    private(set) var timerEnd: Date?
-    private(set) var timerRemaining: TimeInterval?
     private(set) var hasAccessibility = ActionPerformer.hasAccessibilityPermission
     var saveError: String?
 
@@ -43,7 +40,6 @@ final class AppModel {
     /// The gesture mode to return to when a control surface closes.
     @ObservationIgnored private var lastGestureModeID: UUID?
     /// After a four-finger tap closes an overlay, its double-tap twin is ignored.
-    @ObservationIgnored private var countdown: Timer?
     @ObservationIgnored private var ignoreFourFingerTapsUntil = Date.distantPast
 
     init() {
@@ -67,9 +63,6 @@ final class AppModel {
         interaction = InteractionController(pipeline: pipeline)
         interaction.deepPressThreshold = configuration.gestures.hardThreshold
         interaction.pressThreshold = configuration.gestures.lightThreshold
-        interaction.timerRemaining = { [weak self] in self?.timerEnd.map { $0.timeIntervalSinceNow } }
-        interaction.onStartTimer = { [weak self] minutes in self?.startTimer(minutes: minutes) }
-        interaction.onCancelTimer = { [weak self] in self?.cancelTimer() }
         interaction.onBackToWheel = { [weak self] in
             self?.leaveControlSurface()
             self?.toggleModeWheel()
@@ -130,43 +123,6 @@ final class AppModel {
             configuration.activeModeID = id
             announceMode()
         }
-    }
-
-    // MARK: Timer
-
-    func startTimer(minutes: Int) {
-        timerEnd = Date().addingTimeInterval(Double(minutes) * 60)
-        timerRemaining = Double(minutes) * 60
-        countdown?.invalidate()
-        countdown = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tickTimer() }
-        }
-        Log.action.notice("Timer started: \(minutes, privacy: .public) min")
-    }
-
-    func cancelTimer() {
-        countdown?.invalidate()
-        countdown = nil
-        timerEnd = nil
-        timerRemaining = nil
-    }
-
-    private func tickTimer() {
-        guard let end = timerEnd else { return cancelTimer() }
-        let left = end.timeIntervalSinceNow
-        guard left <= 0 else {
-            timerRemaining = left
-            return
-        }
-        cancelTimer()
-        // Something you feel even with the sound off: three strong bursts.
-        for burst in 0..<3 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(burst) * 0.8) {
-                HapticEngine.shared.play([.heavyClick, .strong, .heavyClick, .strong], interval: 0.09)
-            }
-        }
-        modeHUD.show(name: "Time's up", symbol: "bell.and.waves.left.and.right.fill")
-        NSSound(named: "Glass")?.play()
     }
 
     func toggleModeWheel() {

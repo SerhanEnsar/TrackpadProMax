@@ -10,14 +10,7 @@ struct TrackpadProMaxApp: App {
             MenuContent()
                 .environment(model)
         } label: {
-            if let remaining = model.timerRemaining {
-                // A running timer shows its countdown in the menu bar.
-                Label(TimerKnobView.clock(remaining), systemImage: "timer")
-                    .labelStyle(.titleAndIcon)
-                    .monospacedDigit()
-            } else {
-                Image(systemName: model.configuration.isEnabled ? model.activeMode.symbol : "hand.raised.slash")
-            }
+            Image(systemName: model.configuration.isEnabled ? model.activeMode.symbol : "hand.raised.slash")
         }
         .menuBarExtraStyle(.window)
 

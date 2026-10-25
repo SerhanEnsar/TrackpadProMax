@@ -59,10 +59,6 @@ final class OverlayState {
     var quickHighlighted: Int?
     var quickStates: [QuickToggle: Bool] = [:]
 
-    var timerMinutes = 25
-    /// Seconds left on a running timer, shown on the dial.
-    var timerRemaining: TimeInterval?
-
     /// The window-tiling tool, while open.
     var tiling: TilingState?
 

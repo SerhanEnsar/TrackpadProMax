@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import TrackpadCore
 
-@Suite struct TimerKnobTests {
+@Suite struct RotaryKnobTests {
     /// One finger circling the pad center by `degrees` (positive = clockwise).
     func circle(degrees: Double, from startDegrees: Double = 0, steps: Int = 60) -> [TouchFrame] {
         var frames = (0...steps).map { i -> TouchFrame in
@@ -19,23 +19,23 @@ import Testing
             + [TouchFrame(timestamp: 5.1, touches: [])]
     }
 
-    @Test func clockwiseTurnAddsMinutes() {
-        var knob = TimerKnob(minutes: 25)
+    @Test func clockwiseTurnAddsSteps() {
+        var knob = RotaryKnob(value: 25)
         _ = circle(degrees: 90).flatMap { knob.process($0) }
-        #expect(knob.minutes == 28)
+        #expect(knob.value == 28)
     }
 
     @Test func counterClockwiseRemovesAndClampsAtZero() {
-        var knob = TimerKnob(minutes: 2)
+        var knob = RotaryKnob(value: 2)
         let events = circle(degrees: -200).flatMap { knob.process($0) }
-        #expect(knob.minutes == 0)
-        #expect(events.last == .minutes(0))
+        #expect(knob.value == 0)
+        #expect(events.last == .value(0))
     }
 
     @Test func turningPastTwelveKeepsCounting() {
-        var knob = TimerKnob(minutes: 0)
+        var knob = RotaryKnob(value: 0)
         _ = circle(degrees: 450, from: 300, steps: 150).flatMap { knob.process($0) }
-        #expect(knob.minutes == 15)
+        #expect(knob.value == 15)
     }
 
     func press(at p: Point, id: Int = 7, from x0: Double? = nil) -> [TouchFrame] {
@@ -47,22 +47,22 @@ import Testing
         } + [TouchFrame(timestamp: 8.2, touches: [])]
     }
 
-    @Test func firmPressStartsLightTapDoesNot() {
-        var knob = TimerKnob(minutes: 10)
+    @Test func firmPressCommitsLightTapDoesNot() {
+        var knob = RotaryKnob(value: 10)
         #expect(tap(at: Point(x: 0.8, y: 0.8)).flatMap { knob.process($0) }.isEmpty)
-        #expect(press(at: Point(x: 0.8, y: 0.8)).flatMap { knob.process($0) } == [.start(10)])
+        #expect(press(at: Point(x: 0.8, y: 0.8)).flatMap { knob.process($0) } == [.press(10)])
     }
 
-    @Test func centerTapGoesBackAndCenterPressDoesNotStart() {
-        var knob = TimerKnob(minutes: 10)
+    @Test func centerTapGoesBackAndCenterPressDoesNotCommit() {
+        var knob = RotaryKnob(value: 10)
         #expect(tap(at: Point(x: 0.5, y: 0.5)).flatMap { knob.process($0) } == [.back])
-        #expect(!press(at: Point(x: 0.5, y: 0.5)).flatMap { knob.process($0) }.contains(.start(10)))
+        #expect(!press(at: Point(x: 0.5, y: 0.5)).flatMap { knob.process($0) }.contains(.press(10)))
     }
 
-    @Test func pressWhileSlidingDoesNotStart() {
-        var knob = TimerKnob(minutes: 10)
+    @Test func pressWhileSlidingDoesNotCommit() {
+        var knob = RotaryKnob(value: 10)
         let events = press(at: Point(x: 0.9, y: 0.8), from: 0.6).flatMap { knob.process($0) }
-        #expect(!events.contains(.start(10)))
+        #expect(!events.contains(.press(10)))
     }
 }
 

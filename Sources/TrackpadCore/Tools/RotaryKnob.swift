@@ -1,32 +1,36 @@
 import Foundation
 
-/// The timer tool's dial: circling a finger around the middle of the trackpad
-/// turns the minutes up (clockwise) or down. A firm press away from the middle
-/// starts (or cancels a running timer); a tap in the middle goes back.
-public struct TimerKnob: Sendable {
+/// A rotary knob on the trackpad: circling a finger around the middle turns
+/// an integer value up (clockwise) or down, one step per `degreesPerStep`.
+/// A firm press away from the middle commits it; a tap in the middle is Back.
+///
+/// Not wired to a tool right now (it drove the former timer). Kept, with
+/// tests, as a building block for future rotary controls such as volume,
+/// scrubbing or zoom.
+public struct RotaryKnob: Sendable {
     public enum Event: Sendable, Equatable {
-        case minutes(Int)
-        case start(Int)
+        case value(Int)
+        case press(Int)
         case back
     }
 
-    public private(set) var minutes: Int
-    public var degreesPerMinute = 30.0
-    public var range = 0...120
+    public private(set) var value: Int
+    public var degreesPerStep = 30.0
+    public var range: ClosedRange<Int>
     /// Touches closer than this to the center do not turn the dial (angle is noisy there).
     public var deadRadius = 0.12
     /// Taps within this radius of the center mean Back.
     public var centerRadius = 0.15
     public var maxTapDuration: TimeInterval = 0.25
     public var maxTapMovement = 0.03
-    /// Force that starts the timer; usually the hard-press threshold.
-    public var startThreshold: Double
+    /// Force that commits the value; usually the hard-press threshold.
+    public var pressThreshold: Double
     /// A press only counts if the finger stayed put (not mid-circle).
     public var maxPressMovement = 0.06
     private var pressed = false
 
     private var accumulated = 0.0
-    private var baseMinutes: Int
+    private var baseValue: Int
     private var lastAngle: Double?
     private var trackedID: Int?
     private var start = Point(x: 0, y: 0)
@@ -34,10 +38,11 @@ public struct TimerKnob: Sendable {
     private var movement = 0.0
     private var multiFinger = false
 
-    public init(minutes: Int = 25, startThreshold: Double = 750) {
-        self.minutes = minutes
-        baseMinutes = minutes
-        self.startThreshold = startThreshold
+    public init(value: Int = 0, range: ClosedRange<Int> = 0...120, pressThreshold: Double = 750) {
+        self.value = value
+        self.range = range
+        baseValue = value
+        self.pressThreshold = pressThreshold
     }
 
     /// Offset from the pad center, with x scaled so circles feel round on a wide pad.
@@ -68,9 +73,9 @@ public struct TimerKnob: Sendable {
 
         let startOffset = Self.offset(start)
         let inCenter = (startOffset.x * startOffset.x + startOffset.y * startOffset.y).squareRoot() < centerRadius
-        if !pressed, !inCenter, touch.pressure >= startThreshold, movement <= maxPressMovement {
+        if !pressed, !inCenter, touch.pressure >= pressThreshold, movement <= maxPressMovement {
             pressed = true
-            return [.start(minutes)]
+            return [.press(value)]
         }
 
         let o = Self.offset(touch.position)
@@ -88,13 +93,13 @@ public struct TimerKnob: Sendable {
 
         // Clamp the accumulator only past a limit, so turning back from a
         // limit responds at once without eating partial turns inside the range.
-        let low = Double(range.lowerBound - baseMinutes) * degreesPerMinute
-        let high = Double(range.upperBound - baseMinutes) * degreesPerMinute
+        let low = Double(range.lowerBound - baseValue) * degreesPerStep
+        let high = Double(range.upperBound - baseValue) * degreesPerStep
         accumulated = min(high, max(low, accumulated))
-        let target = baseMinutes + Int((accumulated / degreesPerMinute).rounded(.towardZero))
-        guard target != minutes else { return [] }
-        minutes = target
-        return [.minutes(target)]
+        let target = baseValue + Int((accumulated / degreesPerStep).rounded(.towardZero))
+        guard target != value else { return [] }
+        value = target
+        return [.value(target)]
     }
 
     private mutating func lift(at time: TimeInterval) -> [Event] {

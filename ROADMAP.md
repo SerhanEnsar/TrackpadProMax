@@ -25,7 +25,7 @@ When you switch to an app that has gestures, a small notification-style card wit
 - [x] Music surface with now-playing info
 - [x] Output-device bars: hard-press the volume bar, pick a device, set its volume, switch output
 - [x] Two-level mode wheel (Normal folder with gesture modes)
-- [x] Tools: window tiling, app launcher, timer knob, quick settings
+- [x] Tools: window tiling, app launcher, quick settings
 - [ ] More surfaces (numpad, app-specific panels, clipboard history)
 
 ## v0.3 — Continuous pressure controls
@@ -35,6 +35,9 @@ When you switch to an app that has gestures, a small notification-style card wit
 ## v0.4 — Haptic notifications
 - Haptic alerts for notifications, calendar events and low battery
 - Accessibility haptics: feel buttons and window edges under the cursor (opt-in)
+
+## Ideas to keep
+- **Rotary knob**: circle a finger around the middle of the trackpad to turn a value, with a haptic detent per step and a firm press to commit. Built and tested in `TrackpadCore` (`RotaryKnob`, from the removed timer tool); reuse it for volume, scrubbing, zoom or any fine dial.
 
 ## Later
 - Suppress the native click / Force Click for bound gestures (event tap)

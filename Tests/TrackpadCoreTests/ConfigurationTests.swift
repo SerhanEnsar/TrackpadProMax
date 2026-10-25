@@ -121,7 +121,7 @@ import Testing
 
     @Test func defaultsHaveOneGestureMode() {
         #expect(Configuration.defaults.gestureModes.map(\.name) == ["Normal"])
-        #expect(Configuration.defaults.modes.map(\.name) == ["Normal", "Media", "Control", "Windows", "Apps", "Timer", "Quick Settings"])
+        #expect(Configuration.defaults.modes.map(\.name) == ["Normal", "Media", "Control", "Windows", "Apps", "Quick Settings"])
     }
 
     @Test func v3MediaMiddleBecomesBack() throws {

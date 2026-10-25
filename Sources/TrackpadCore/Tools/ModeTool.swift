@@ -4,14 +4,12 @@ import Foundation
 public enum ModeTool: String, Sendable, Codable, CaseIterable {
     case windowTiling
     case appLauncher
-    case timer
     case quickSettings
 
     public var defaultName: String {
         switch self {
         case .windowTiling: "Windows"
         case .appLauncher: "Apps"
-        case .timer: "Timer"
         case .quickSettings: "Quick Settings"
         }
     }
@@ -20,7 +18,6 @@ public enum ModeTool: String, Sendable, Codable, CaseIterable {
         switch self {
         case .windowTiling: "rectangle.split.2x2"
         case .appLauncher: "square.grid.3x3.fill"
-        case .timer: "timer"
         case .quickSettings: "switch.2"
         }
     }
@@ -29,7 +26,6 @@ public enum ModeTool: String, Sendable, Codable, CaseIterable {
         switch self {
         case .windowTiling: "Split the screen into 2, 3 or 4 windows: pick a layout, drag the dividers, then drag apps into place."
         case .appLauncher: "Your favourite apps on a wheel: slide to pick, tap to open."
-        case .timer: "Circle a finger to set minutes, tap to start; the trackpad buzzes when time is up."
         case .quickSettings: "Toggle Dark Mode, Night Shift, Wi-Fi, Bluetooth, Keep Awake or lock the screen."
         }
     }

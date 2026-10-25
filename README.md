@@ -31,7 +31,6 @@ Every MacBook since 2015 has a **Force Touch trackpad**. It measures how hard ea
 | **Mode wheel** | Four-finger double tap opens a radial wheel in the middle of the screen. Slide a finger to point at a mode (each step ticks through the Taptic Engine), tap to switch. **Normal** is a folder: it opens a second wheel with your gesture modes. Also on `⌃⌥⌘T`. |
 | **Window tiling** | Split the screen into 2, 3 or 4 windows without touching the cursor: press a corner of the trackpad to pick the split, press and drag the dividers, two-finger tap to confirm, then drag apps from the left edge onto their panes. Every open app is listed; windows are tiled on the regular desktop (full-screen ones leave full screen first). Stage Manager only keeps one app on stage, so it is turned off before tiling. |
 | **App launcher** | Your favourite apps (from the Dock by default) on a wheel: slide to pick, tap to open. |
-| **Timer knob** | Circle a finger to set minutes with a haptic tick per minute, press firmly to start. The menu bar counts down and the trackpad buzzes when time is up. |
 | **Quick settings** | A 3×3 grid on the trackpad: Dark Mode, Night Shift, Keep Awake, Wi-Fi, Bluetooth, Mute, Mic Off, Lock Screen. |
 | **Surface modes** | The whole trackpad becomes a touch control panel shown on screen. **Control**: slide the right edge for volume, the left for display brightness, the bottom for keyboard backlight. **Media**: now-playing card, scrub the track along the bottom edge, swipe the top for tracks and tap it to play/pause. Every edge is configurable. Hard-press the volume bar to see your **output devices** (AirPods, Bluetooth speakers…): slide to pick, up/down for that device's volume, press hard to switch. A four-finger tap, or a tap in the middle, closes a surface. |
 | **Per-app profiles** | Gestures that only apply in Safari, Final Cut, Figma… |
@@ -75,7 +74,7 @@ TrackpadProMax needs **Accessibility** access (*System Settings › Privacy & Se
 | **Media** | Surface: now playing in the middle (tap = back), top edge swipe = previous/next track and tap = play/pause, bottom edge = scrub the track, right edge = volume. |
 | **Control** | Surface: right edge = volume, left = display brightness, bottom = keyboard backlight, top = tracks; tap the middle to go back. |
 
-| **Windows / Apps / Timer / Quick Settings** | Tools, see the feature table. |
+| **Windows / Apps / Quick Settings** | Tools, see the feature table. |
 
 A tap in the middle (Back) returns to the mode wheel; a four-finger tap, Esc or a few idle seconds close surfaces and tools. You can change gestures and edge controls in **Settings › Gestures**.
 

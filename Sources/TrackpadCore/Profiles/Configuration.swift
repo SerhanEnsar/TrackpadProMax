@@ -89,7 +89,7 @@ public struct Mode: Identifiable, Hashable, Sendable, Codable {
 /// Everything the user can configure. Persisted as JSON.
 public struct Configuration: Sendable, Codable, Equatable {
     /// Bumped when stored values need migrating. See `migrate()`.
-    public static let currentSchemaVersion = 5
+    public static let currentSchemaVersion = 6
 
     public var schemaVersion = Configuration.currentSchemaVersion
     public var isEnabled = true
@@ -116,7 +116,12 @@ public struct Configuration: Sendable, Codable, Equatable {
     /// Missing keys fall back to defaults so older settings files keep loading.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        let modes = try c.decode([Mode].self, forKey: .modes)
+        var modes = try c.decode([Mode].self, forKey: .modes)
+        // 0.2: the timer tool was removed; drop its mode (its tool no longer decodes).
+        let tools = (try? c.decode([ToolProbe].self, forKey: .modes)) ?? []
+        if tools.count == modes.count {
+            modes = zip(modes, tools).filter { $0.1.tool != "timer" }.map(\.0)
+        }
         guard !modes.isEmpty else {
             throw DecodingError.dataCorruptedError(forKey: .modes, in: c, debugDescription: "No modes")
         }
@@ -207,4 +212,9 @@ public struct Configuration: Sendable, Codable, Equatable {
     static var controlMode: Mode {
         Mode(name: "Control", symbol: "slider.horizontal.below.square.and.square.filled", surface: ControlSurfaceLayout())
     }
+}
+
+/// Reads only the raw `tool` string of a stored mode.
+private struct ToolProbe: Decodable {
+    let tool: String?
 }

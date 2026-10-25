@@ -9,7 +9,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Tiled windows no longer collapse to one with Stage Manager on: it is turned off before tiling, and every tiled window is brought to the front.
 - Window tiling lists every open app (it used to miss apps on other desktops or behind a full-screen app) and places all of them: hidden or other-desktop apps are brought over, full-screen windows leave full screen first, and each placement is checked and retried.
 - The two-finger confirm in window tiling works when the fingers land or lift a moment apart.
-- The timer starts with a firm press, so it no longer clashes with the Back tap in the middle.
 - Back in the middle of surfaces and tools returns to the mode wheel instead of closing everything.
 - Surface bars now fill smoothly all the way down to 0 % (they used to stop moving below about 22 %).
 - Multi-finger touches no longer trigger surface bars or the middle play/pause tap.
@@ -18,7 +17,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Two-level mode wheel: Normal is a folder that opens a wheel of gesture modes; its middle goes back.
 - Window tiling tool: pick a 2/3/4 split, drag the dividers, two-finger tap to confirm, drag apps from the left edge onto panes.
 - App launcher tool: favourite apps (Dock apps by default) on a wheel.
-- Timer knob tool: circle to set minutes, tap to start; menu bar countdown and a haptic alarm.
 - Quick settings tool: Dark Mode, Night Shift, Keep Awake, Wi-Fi, Bluetooth, Mute, Mic Off, Lock Screen.
 - Output devices on the trackpad: hard-press the volume bar of a surface and your outputs (AirPods, Bluetooth speakers, built-in…) grow into bars. Slide sideways to pick one, up/down for its volume, press hard to route sound there, tap to go back.
 - A four-finger tap (single or double) closes any surface or the mode wheel and goes back to Normal, like Esc.
