@@ -46,6 +46,7 @@ final class InteractionController {
         input.onSurface = { [weak self] events in self?.handleSurface(events) }
         input.onActivity = { [weak self] in self?.restartIdleTimer() }
         input.onDevices = { [weak self] events in self?.handleDevices(events) }
+        input.onTiling = { [weak self] events in self?.handleTiling(events) }
         pipeline.setFrameTap { [input] frame in input.process(frame) }
     }
 
@@ -155,17 +156,125 @@ final class InteractionController {
     // MARK: - Tools
 
     private(set) var toolMode: Mode?
+    /// The tool asked to go back to the mode wheel.
+    var onBackToWheel: () -> Void = {}
+    /// Light-press force for tools; follows the light-press setting.
+    var pressThreshold = 120.0
+    var toolIdleTimeout: TimeInterval = 30
+
+    private let tilingPanel = OverlayPanel<TilingView>(size: NSSize(
+        width: TilingView.size.width + 60, height: TilingView.size.height + 60
+    ))
 
     func enterTool(_ mode: Mode) {
         guard let tool = mode.tool else { return }
         toolMode = mode
-        Log.action.notice("Tool \(tool.rawValue, privacy: .public) is not available yet")
-        onSurfaceIdle()
+        switch tool {
+        case .windowTiling:
+            startTiling()
+        default:
+            Log.action.notice("Tool \(tool.rawValue, privacy: .public) is not available yet")
+            toolMode = nil
+            onSurfaceIdle()
+        }
     }
 
     func exitTool() {
         guard toolMode != nil else { return }
         toolMode = nil
+        state.tiling = nil
+        tilingPanel.hide()
+        if !isWheelOpen, surfaceMode == nil {
+            input.install(.none, waitForLift: false)
+            inputLock.release()
+            idleTimer?.invalidate()
+        }
+    }
+
+    // MARK: Window tiling
+
+    private func startTiling() {
+        let apps = WindowTiler.appsWithWindows()
+        state.tiling = OverlayState.TilingState(apps: apps)
+        input.install(.tiling(TilingFlow(appCount: apps.count, pressThreshold: pressThreshold)), waitForLift: !touchesAreUp)
+        inputLock.engage()
+        tilingPanel.show(TilingView(state: state))
+        restartIdleTimer()
+    }
+
+    private func handleTiling(_ events: [TilingFlow.Event]) {
+        guard var tiling = state.tiling else { return }
+        for event in events {
+            switch event {
+            case let .highlightQuadrant(q):
+                tiling.quadrant = q
+                HapticEngine.shared.play(.tick)
+            case .back:
+                HapticEngine.shared.play(.weak)
+                state.tiling = tiling
+                onBackToWheel()
+                return
+            case let .chooseCount(count):
+                tiling.layout = TilingLayout(count: count)
+                tiling.phase = .adjust
+                tiling.quadrant = nil
+                HapticEngine.shared.play(.click)
+            case let .hoverDivider(divider):
+                tiling.hoveredDivider = divider
+                if divider != nil { HapticEngine.shared.play(.tick) }
+            case let .grabDivider(divider):
+                tiling.grabbedDivider = divider
+                HapticEngine.shared.play(.medium)
+            case let .moveDivider(divider, value):
+                let before = tiling.layout
+                tiling.layout.move(divider, to: value)
+                // A detent every 5 % of the screen.
+                let old = divider == .vertical ? before.splitX : before.splitY
+                if Int(old * 20) != Int(value * 20) { HapticEngine.shared.play(.tick) }
+            case .releaseDivider:
+                tiling.grabbedDivider = nil
+            case .confirmLayout:
+                tiling.phase = .assign
+                tiling.hoveredDivider = nil
+                HapticEngine.shared.play([.click, .strong])
+            case let .highlightApp(index):
+                tiling.highlightedApp = index
+                HapticEngine.shared.play(.tick)
+            case let .pickUpApp(index):
+                tiling.draggingApp = index
+                HapticEngine.shared.play(.medium)
+            case let .dragMoved(point):
+                tiling.dragPoint = point
+            case let .hoverPane(pane):
+                tiling.hoveredPane = pane
+                if pane != nil { HapticEngine.shared.play(.tick) }
+            case let .dropApp(app, pane):
+                tiling.assignments = tiling.assignments.filter { $0.value != app }
+                tiling.assignments[pane] = app
+                tiling.draggingApp = nil
+                tiling.dragPoint = nil
+                tiling.hoveredPane = nil
+                HapticEngine.shared.play(.click)
+            case .cancelDrag:
+                tiling.draggingApp = nil
+                tiling.dragPoint = nil
+                tiling.hoveredPane = nil
+            case let .complete(assignments):
+                let panes = tiling.layout.panes
+                let placements = assignments.sorted { $0.key < $1.key }.compactMap { pane, app -> (pid: pid_t, pane: Rect)? in
+                    guard tiling.apps.indices.contains(app), panes.indices.contains(pane) else { return nil }
+                    return (tiling.apps[app].id, panes[pane])
+                }
+                state.tiling = tiling
+                HapticEngine.shared.play(.heavyClick)
+                // Close first so our panel never sits over the freshly tiled windows.
+                onSurfaceIdle()
+                WindowTiler.tile(placements)
+                return
+            }
+        }
+        state.tiling = tiling
+        restartIdleTimer()
     }
 
     // MARK: - Control surface
@@ -413,20 +522,20 @@ final class InteractionController {
     func escape() {
         if isWheelOpen {
             closeWheel()
-        } else if surfaceMode != nil {
+        } else if surfaceMode != nil || toolMode != nil {
             onSurfaceIdle()
         }
     }
 
     private func restartIdleTimer() {
         idleTimer?.invalidate()
-        let timeout = isWheelOpen ? wheelIdleTimeout : surfaceIdleTimeout
+        let timeout = isWheelOpen ? wheelIdleTimeout : (toolMode != nil ? toolIdleTimeout : surfaceIdleTimeout)
         idleTimer = Timer.scheduledTimer(withTimeInterval: timeout, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 if self.isWheelOpen {
                     self.closeWheel()
-                } else if self.surfaceMode != nil {
+                } else if self.surfaceMode != nil || self.toolMode != nil {
                     self.onSurfaceIdle()
                 }
             }
@@ -442,6 +551,7 @@ private final class OverlayInput: @unchecked Sendable {
         case wheel(RadialSelector)
         case surface(ControlSurfaceTracker)
         case devices(DevicePicker)
+        case tiling(TilingFlow)
     }
 
     // Set once on the main actor before frames flow; only called on the main actor.
@@ -449,6 +559,7 @@ private final class OverlayInput: @unchecked Sendable {
     var onSurface: @MainActor @Sendable ([ControlSurfaceTracker.Event]) -> Void = { _ in }
     var onActivity: @MainActor @Sendable () -> Void = {}
     var onDevices: @MainActor @Sendable ([DevicePicker.Event]) -> Void = { _ in }
+    var onTiling: @MainActor @Sendable ([TilingFlow.Event]) -> Void = { _ in }
 
     private let lock = NSLock()
     private var kind = Kind.none
@@ -491,6 +602,17 @@ private final class OverlayInput: @unchecked Sendable {
             if !events.isEmpty || moved {
                 let callback = onWheel
                 Task { @MainActor in callback(events, knob) }
+            }
+        case var .tiling(flow):
+            let events = flow.process(frame)
+            kind = .tiling(flow)
+            lock.unlock()
+            if !events.isEmpty {
+                let callback = onTiling
+                Task { @MainActor in callback(events) }
+            } else if ping {
+                let callback = onActivity
+                Task { @MainActor in callback() }
             }
         case var .devices(picker):
             let events = picker.process(frame)

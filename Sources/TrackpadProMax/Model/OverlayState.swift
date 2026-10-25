@@ -28,6 +28,25 @@ final class OverlayState {
     /// Output-device bars, opened by a hard press on the volume bar.
     var devicePicker: DevicePickerState?
 
+    struct TilingState {
+        var phase = TilingFlow.Phase.chooseCount
+        var quadrant: Int?
+        var layout = TilingLayout(count: 2)
+        var hoveredDivider: TilingLayout.Divider?
+        var grabbedDivider: TilingLayout.Divider?
+        var apps: [WindowTiler.App] = []
+        var highlightedApp = 0
+        var draggingApp: Int?
+        /// Dragged icon position in layout coordinates (y down).
+        var dragPoint: Point?
+        var hoveredPane: Int?
+        /// pane → app index
+        var assignments: [Int: Int] = [:]
+    }
+
+    /// The window-tiling tool, while open.
+    var tiling: TilingState?
+
     /// Shown in the middle of music surfaces.
     var nowPlaying: NowPlaying?
     /// Briefly set after a media tap/swipe for visual feedback.

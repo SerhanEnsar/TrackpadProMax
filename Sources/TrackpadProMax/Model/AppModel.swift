@@ -62,6 +62,11 @@ final class AppModel {
         lastGestureModeID = configuration.activeModeID
         interaction = InteractionController(pipeline: pipeline)
         interaction.deepPressThreshold = configuration.gestures.hardThreshold
+        interaction.pressThreshold = configuration.gestures.lightThreshold
+        interaction.onBackToWheel = { [weak self] in
+            self?.leaveControlSurface()
+            self?.toggleModeWheel()
+        }
         interaction.onSelectMode = { [weak self] id in self?.selectMode(id) }
         interaction.onSurfaceIdle = { [weak self] in self?.leaveControlSurface() }
 
@@ -132,6 +137,7 @@ final class AppModel {
             selectMode(target.id)
         } else {
             interaction.exitSurface()
+            interaction.exitTool()
         }
     }
 
@@ -235,6 +241,7 @@ final class AppModel {
         if old.gestures != configuration.gestures {
             pipeline.settings = configuration.gestures
             interaction?.deepPressThreshold = configuration.gestures.hardThreshold
+            interaction?.pressThreshold = configuration.gestures.lightThreshold
         }
         if old.modeHotkey != configuration.modeHotkey || old.discovery.hotkey != configuration.discovery.hotkey {
             registerHotKey()
