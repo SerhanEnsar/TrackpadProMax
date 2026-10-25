@@ -424,16 +424,16 @@ final class InteractionController {
                 tiling.dragPoint = nil
                 tiling.hoveredPane = nil
             case let .complete(assignments):
-                let panes = tiling.layout.panes
-                let placements = assignments.sorted { $0.key < $1.key }.compactMap { pane, app -> (pid: pid_t, pane: Rect)? in
-                    guard tiling.apps.indices.contains(app), panes.indices.contains(pane) else { return nil }
-                    return (tiling.apps[app].id, panes[pane])
+                let placements = assignments.sorted { $0.key < $1.key }.compactMap { pane, app -> (pid: pid_t, pane: Int)? in
+                    guard tiling.apps.indices.contains(app) else { return nil }
+                    return (tiling.apps[app].id, pane)
                 }
+                let layout = tiling.layout
                 state.tiling = tiling
                 HapticEngine.shared.play(.heavyClick)
                 // Close first so our panel never sits over the freshly tiled windows.
                 onSurfaceIdle()
-                WindowTiler.tile(placements)
+                WindowTiler.tile(layout: layout, assignments: placements)
                 return
             }
         }

@@ -102,3 +102,57 @@ public struct TilingLayout: Sendable, Equatable {
         panes.firstIndex { $0.contains(point) }
     }
 }
+
+/// A size as a fraction of the screen.
+public struct Size: Sendable, Equatable {
+    public var width, height: Double
+
+    public init(width: Double, height: Double) {
+        self.width = width
+        self.height = height
+    }
+}
+
+extension TilingLayout {
+    /// Panes left/right of the vertical divider and above/below the horizontal one.
+    private var columns: (left: [Int], right: [Int]) {
+        switch count {
+        case 2: ([0], [1])
+        case 3: ([0], [1, 2])
+        default: ([0, 2], [1, 3])
+        }
+    }
+
+    private var rows: (top: [Int], bottom: [Int]) {
+        switch count {
+        case 3: ([1], [2])
+        case 4: ([0, 1], [2, 3])
+        default: ([], [])
+        }
+    }
+
+    /// Moves the dividers as little as possible so every window's minimum
+    /// size (fraction of the screen, by pane) fits its pane. If the minimums
+    /// cannot all fit, the overflow is shared in proportion to them.
+    public func fitted(to minimums: [Int: Size]) -> TilingLayout {
+        var result = self
+        let (left, right) = columns
+        let minLeft = left.compactMap { minimums[$0]?.width }.max() ?? 0
+        let minRight = right.compactMap { minimums[$0]?.width }.max() ?? 0
+        result.splitX = Self.fit(splitX, lower: minLeft, upper: 1 - minRight)
+        let (top, bottom) = rows
+        if !top.isEmpty {
+            let minTop = top.compactMap { minimums[$0]?.height }.max() ?? 0
+            let minBottom = bottom.compactMap { minimums[$0]?.height }.max() ?? 0
+            result.splitY = Self.fit(splitY, lower: minTop, upper: 1 - minBottom)
+        }
+        return result
+    }
+
+    private static func fit(_ preferred: Double, lower: Double, upper: Double) -> Double {
+        if lower <= upper { return min(max(preferred, lower), upper) }
+        // Cannot fit both: share the overlap in proportion to the minimums.
+        let a = lower, b = 1 - upper
+        return a / (a + b)
+    }
+}

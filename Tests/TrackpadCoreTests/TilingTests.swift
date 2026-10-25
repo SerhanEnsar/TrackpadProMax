@@ -222,3 +222,41 @@ private func run(_ flow: inout TilingFlow, _ pad: Pad) -> [TilingFlow.Event] {
         #expect(TilingFlow(appCount: 1).panesToFill == 1)
     }
 }
+
+@Suite struct TilingFitTests {
+    @Test func untouchedWhenEverythingFits() {
+        var layout = TilingLayout(count: 2)
+        layout.move(.vertical, to: 0.4)
+        #expect(layout.fitted(to: [0: Size(width: 0.3, height: 0.5), 1: Size(width: 0.3, height: 0.5)]) == layout)
+    }
+
+    @Test func dividerMovesToFitTheWideWindow() {
+        var layout = TilingLayout(count: 2)
+        layout.move(.vertical, to: 0.7)
+        // Right window needs 40 % of the screen: the divider moves from 0.7 to 0.6.
+        let fitted = layout.fitted(to: [1: Size(width: 0.4, height: 0.3)])
+        #expect(abs(fitted.splitX - 0.6) < 1e-9)
+    }
+
+    @Test func threePaneUsesWidestRightWindowAndRowHeights() {
+        let fitted = TilingLayout(count: 3).fitted(to: [
+            1: Size(width: 0.55, height: 0.3), 2: Size(width: 0.2, height: 0.7),
+        ])
+        #expect(abs(fitted.splitX - 0.45) < 1e-9)
+        #expect(abs(fitted.splitY - 0.3) < 1e-9)
+    }
+
+    @Test func gridUsesBothWindowsInEachColumn() {
+        let fitted = TilingLayout(count: 4).fitted(to: [
+            0: Size(width: 0.2, height: 0.2), 2: Size(width: 0.6, height: 0.2),
+        ])
+        #expect(abs(fitted.splitX - 0.6) < 1e-9)
+    }
+
+    @Test func impossibleFitSharesOverflowProportionally() {
+        let fitted = TilingLayout(count: 2).fitted(to: [0: Size(width: 0.6, height: 0), 1: Size(width: 0.6, height: 0)])
+        #expect(abs(fitted.splitX - 0.5) < 1e-9)
+        let skewed = TilingLayout(count: 2).fitted(to: [0: Size(width: 0.9, height: 0), 1: Size(width: 0.3, height: 0)])
+        #expect(abs(skewed.splitX - 0.75) < 1e-9)
+    }
+}

@@ -32,11 +32,11 @@ enum WindowTiler {
             .map { App(id: $0.element.processIdentifier, name: $0.element.localizedName ?? "App", icon: $0.element.icon ?? NSImage()) }
     }
 
-    /// Puts each app's main window into its pane (normalized, y down) on the
-    /// main screen, one app at a time, then brings them forward in order.
-    static func tile(_ placements: [(pid: pid_t, pane: Rect)]) {
+    /// Tiles each app's main window into its pane of `layout` on the main
+    /// screen: prepare the windows, measure how small each may get, shift the
+    /// dividers so every window fits, place them, then bring them forward.
+    static func tile(layout: TilingLayout, assignments: [(pid: pid_t, pane: Int)]) {
         guard let screen = NSScreen.main else { return }
-        let frames = placements.map { (pid: $0.pid, frame: axFrame(for: $0.pane, on: screen)) }
         Task { @MainActor in
             // Stage Manager keeps only the active app on stage, so a tiled
             // layout would collapse to one window. Turn it off first.
@@ -44,13 +44,32 @@ enum WindowTiler {
                 StageManager.turnOff()
                 try? await Task.sleep(for: .milliseconds(900))
             }
-            var placed: [(pid: pid_t, window: AXUIElement)] = []
-            for placement in frames {
-                if let window = await place(pid: placement.pid, frame: placement.frame) {
-                    placed.append((placement.pid, window))
+            var windows: [(pid: pid_t, pane: Int, window: AXUIElement)] = []
+            for assignment in assignments {
+                if let window = await prepareWindow(pid: assignment.pid) {
+                    windows.append((assignment.pid, assignment.pane, window))
                 }
             }
-            await bringToFront(placed)
+
+            // Apps refuse to shrink below their minimum size, which made
+            // narrow panes overlap. Measure the minimums and fit the dividers.
+            let visible = screen.visibleFrame.size
+            var minimums: [Int: Size] = [:]
+            for item in windows {
+                if let size = minimumSize(of: item.window) {
+                    minimums[item.pane] = Size(width: size.width / visible.width, height: size.height / visible.height)
+                }
+            }
+            let fitted = layout.fitted(to: minimums)
+            if fitted != layout {
+                Log.action.notice("Tiling: dividers moved to fit minimum window sizes (x \(fitted.splitX, privacy: .public), y \(fitted.splitY, privacy: .public))")
+            }
+
+            let panes = fitted.panes
+            for item in windows where panes.indices.contains(item.pane) {
+                await setFrame(item.window, axFrame(for: panes[item.pane], on: screen), pid: item.pid)
+            }
+            await bringToFront(windows.map { ($0.pid, $0.window) })
         }
     }
 
@@ -63,6 +82,14 @@ enum WindowTiler {
         let x = visible.minX + pane.x * visible.width
         let topY = visible.maxY - pane.y * visible.height
         return CGRect(x: x, y: primaryHeight - topY, width: width, height: height)
+    }
+
+    /// Asks the window to be tiny and reads back what it allowed.
+    private static func minimumSize(of window: AXUIElement) -> CGSize? {
+        var tiny = CGSize(width: 1, height: 1)
+        guard let value = AXValueCreate(.cgSize, &tiny) else { return nil }
+        AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value)
+        return currentFrame(window)?.size
     }
 
     /// Brings every tiled window in front of other apps, first pane on top.
@@ -90,8 +117,9 @@ enum WindowTiler {
         }
     }
 
-    /// Returns the window it placed, so it can be raised afterwards.
-    private static func place(pid: pid_t, frame: CGRect) async -> AXUIElement? {
+    /// Finds the app's window and gets it ready to move: unhidden, on this
+    /// Space, out of full screen and not minimized.
+    private static func prepareWindow(pid: pid_t) async -> AXUIElement? {
         guard let running = NSRunningApplication(processIdentifier: pid) else { return nil }
         let name = running.localizedName ?? "pid \(pid)"
         running.unhide()
@@ -110,13 +138,17 @@ enum WindowTiler {
             Log.action.error("Tiling: \(name, privacy: .public) has no window we can reach")
             return nil
         }
-
         if bool(window, "AXFullScreen") == true {
             AXUIElementSetAttributeValue(window, "AXFullScreen" as CFString, kCFBooleanFalse)
             try? await Task.sleep(for: .milliseconds(1100))
         }
         AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+        return window
+    }
 
+    /// Sets the frame, reads it back and retries once if the app moved it.
+    private static func setFrame(_ window: AXUIElement, _ frame: CGRect, pid: pid_t) async {
+        let name = NSRunningApplication(processIdentifier: pid)?.localizedName ?? "pid \(pid)"
         for attempt in 0..<2 {
             set(window, frame)
             try? await Task.sleep(for: .milliseconds(attempt == 0 ? 120 : 250))
@@ -127,9 +159,8 @@ enum WindowTiler {
             Tiled \(name, privacy: .public) to \(String(describing: frame), privacy: .public) \
             (actual \(String(describing: actual), privacy: .public), attempt \(attempt + 1, privacy: .public))
             """)
-            if ok { break }
+            if ok { return }
         }
-        return window
     }
 
     private static func set(_ window: AXUIElement, _ frame: CGRect) {
