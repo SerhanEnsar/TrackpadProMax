@@ -13,7 +13,7 @@ jobs:
   build-and-test:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Swift version
@@ -22,7 +22,7 @@ jobs:
         run: swift test
       - name: Build app bundle
         run: scripts/build-app.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: TrackpadProMax-${{ github.sha }}
           path: dist/*.zip
