@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds TrackpadProMax.app (universal-free, native arch) into ./dist and zips it.
+# Builds TrackpadProMax.app into ./dist and zips it (release: universal binary).
 #
 #   scripts/build-app.sh            release build
 #   scripts/build-app.sh debug      debug build
@@ -23,8 +23,13 @@ if [ -z "${SDKROOT:-}" ] && [ "$(xcode-select -p)" = "/Library/Developer/Command
     done
 fi
 
-swift build -c "$CONFIG" --product TrackpadProMax
-BIN="$(swift build -c "$CONFIG" --show-bin-path)/TrackpadProMax"
+# Release builds are universal (Apple Silicon + Intel).
+ARCHS=""
+[ "$CONFIG" = "release" ] && ARCHS="--arch arm64 --arch x86_64"
+# shellcheck disable=SC2086
+swift build -c "$CONFIG" $ARCHS --product TrackpadProMax
+# shellcheck disable=SC2086
+BIN="$(swift build -c "$CONFIG" $ARCHS --show-bin-path)/TrackpadProMax"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

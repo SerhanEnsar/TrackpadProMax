@@ -5,31 +5,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-### Fixed
-- Tiled windows no longer collapse to one with Stage Manager on: it is turned off before tiling, and every tiled window is brought to the front.
-- Window tiling lists every open app (it used to miss apps on other desktops or behind a full-screen app) and places all of them: hidden or other-desktop apps are brought over, full-screen windows leave full screen first, and each placement is checked and retried.
-- The two-finger confirm in window tiling works when the fingers land or lift a moment apart.
-- Back in the middle of surfaces and tools returns to the mode wheel instead of closing everything.
-- Surface bars now fill smoothly all the way down to 0 % (they used to stop moving below about 22 %).
-- Multi-finger touches no longer trigger surface bars or the middle play/pause tap.
+## [0.1.0] - 2026-10-26
+
+First public release.
 
 ### Added
-- Two-level mode wheel: Normal is a folder that opens a wheel of gesture modes; its middle goes back.
-- Window tiling tool: pick a 2/3/4 split, drag the dividers, two-finger tap to confirm, drag apps from the left edge onto panes.
-- App launcher tool: favourite apps (Dock apps by default) on a wheel.
-- Quick settings tool: Dark Mode, Night Shift, Keep Awake, Wi-Fi, Bluetooth, Mute, Mic Off, Lock Screen.
-- Output devices on the trackpad: hard-press the volume bar of a surface and your outputs (AirPods, Bluetooth speakers, built-in…) grow into bars. Slide sideways to pick one, up/down for its volume, press hard to route sound there, tap to go back.
-- A four-finger tap (single or double) closes any surface or the mode wheel and goes back to Normal, like Esc.
-- Each surface chooses what a tap in the middle does: Now Playing (play/pause) or Back (close). Control and Media default to Back; Media keeps showing the playing track.
-- Mode wheel: four-finger double tap opens a radial wheel; slide to pick a mode with haptic ticks, tap to switch, tap in the middle to cancel.
-- Surface modes: the trackpad turns into an on-screen touch panel. Edge bars set volume, display brightness and keyboard backlight directly, with haptic detents.
-- Media mode is now a music surface: now-playing card, scrubbing along the bottom edge, track swipes, tap to play/pause (MediaRemote, with Music/Spotify AppleScript fallback).
-- Gesture Discovery HUD: when you open an app, a card lists its trackpad gestures, and hovering a gesture plays it on an animated trackpad. Show it any time with `⌃⌥⌘G`.
-- Animated gesture preview in the gesture editor.
-- Multitouch stream from the private MultitouchSupport framework, loaded at runtime.
+
+#### Trackpad input
+- Raw multitouch stream (per-finger position, force, size) from the private MultitouchSupport framework, loaded at runtime.
+- Gesture recognizer: 1–4 finger taps and double taps, light / medium / hard presses, corner and edge zones.
+- Click gate: where a deeper press is bound, the system click waits and is delivered as soon as you ease off, so a hard press never also clicks the button under the pointer.
 - Haptic engine with direct Taptic Engine actuation and a public-API fallback.
-- Gesture recognizer for 1–4 finger taps and double taps, light / medium / hard presses, and corner and edge zones.
+
+#### Gestures and actions
 - Actions: keyboard shortcuts, mouse clicks, media and brightness keys, Mission Control, Show Desktop, screenshot, lock screen, apps, URLs, Shortcuts and AppleScript.
-- Trackpad modes and per-app profiles, switchable with a global hotkey and confirmed by a haptic and an on-screen badge.
-- Menu bar app with a pressure visualizer, gesture editor and sensitivity settings.
-- Click gate: where a medium or hard press is bound, the system click waits. If the press fires, the click is dropped; if you let go earlier, the click goes through on release; dragging works as usual.
+- Gesture modes with per-app profiles.
+- Gesture Discovery HUD: opening an app shows a card with its gestures; hovering one plays it on an animated trackpad (`⌃⌥⌘G` shows it any time).
+
+#### Mode wheel
+- Four-finger double tap (or `⌃⌥⌘T`) opens a radial wheel. Slide to pick (haptic tick per step), tap to switch.
+- Normal is a folder that opens a wheel of gesture modes.
+- A tap in the middle goes back; a four-finger tap or Esc closes everything.
+
+#### Surfaces
+- **Control**: the trackpad becomes an on-screen panel. Edge bars set volume, display brightness and keyboard backlight directly, with haptic detents.
+- **Media**: now-playing card, scrubbing along the bottom edge, track swipes and play/pause on the top edge (MediaRemote, with a Music/Spotify AppleScript fallback).
+- Output devices: hard-press the volume bar to see your outputs (AirPods, Bluetooth speakers, built-in…), set each one's volume and switch to it.
+- Every edge control and the middle tap are configurable.
+
+#### Tools
+- **Windows**: cursor-free window tiling. Pick a 2/3/4 split, drag the dividers, two-finger tap to confirm, then drag apps from the left edge onto panes. Dividers adapt to each app's minimum window size, full-screen windows leave full screen, and Stage Manager is turned off so all windows stay on screen.
+- **Apps**: favourite apps (Dock apps by default) on a wheel.
+- **Quick Settings**: Dark Mode, Night Shift, Keep Awake, Wi-Fi, Bluetooth, Mute, Mic Off and Lock Screen on a 3×3 grid.
+
+#### App
+- Menu bar app with a pressure visualizer, gesture editor, surface and launcher editors, and sensitivity settings.
+- Settings are stored as JSON with forward-compatible decoding and migrations.
+
+[Unreleased]: https://github.com/SerhanEnsar/TrackpadProMax/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/SerhanEnsar/TrackpadProMax/releases/tag/v0.1.0

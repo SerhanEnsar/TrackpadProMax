@@ -45,9 +45,10 @@ See the [roadmap](ROADMAP.md) for what's coming, such as pressure sliders for vo
 
 ### Download
 
-Grab the latest `TrackpadProMax-x.y.z.zip` from [Releases](https://github.com/SerhanEnsar/TrackpadProMax/releases), unzip it and move **TrackpadProMax.app** to `/Applications`.
-
-The app is not notarized yet, so macOS blocks it on first launch. Right-click it, choose **Open**, then confirm.
+1. Download `TrackpadProMax-x.y.z.zip` from [Releases](https://github.com/SerhanEnsar/TrackpadProMax/releases). It is a universal app for Apple Silicon and Intel Macs, macOS 15 or later.
+2. Unzip it and move **TrackpadProMax.app** to `/Applications`.
+3. The app is not notarized by Apple yet, so macOS blocks the first launch. Open it once, then go to *System Settings › Privacy & Security* and click **Open Anyway**. Alternatively, run `xattr -dr com.apple.quarantine /Applications/TrackpadProMax.app` in Terminal.
+4. Grant **Accessibility** when asked (see below).
 
 ### Build from source
 
