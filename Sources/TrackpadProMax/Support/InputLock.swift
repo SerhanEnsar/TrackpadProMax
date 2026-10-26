@@ -14,15 +14,23 @@ final class InputLock {
     private var source: CFRunLoopSource?
     private var frozenAt = CGPoint.zero
     private var keyMonitors: [Any] = []
+    /// After release, clicks are still swallowed for a moment: the tap that
+    /// closed the overlay turns into a tap-to-click only after the finger
+    /// lifts, and that click must not land on the window underneath.
+    private var drainUntil: Date?
+    private var drainTimer: Timer?
+    private var buttonsHeld = Set<CGEventType>()
+    private static let drainDuration: TimeInterval = 0.35
 
     func engage() {
         guard !isEngaged else { return }
         isEngaged = true
+        stopDrain()
         frozenAt = CGEvent(source: nil)?.location ?? .zero
         // Detach the cursor from mouse movement and hide it; the tap below is the backstop.
         CGAssociateMouseAndMouseCursorPosition(0)
         CursorVisibility.hide()
-        startTap()
+        if tap == nil { startTap() }
         let escape: (NSEvent) -> Bool = { [weak self] event in
             guard event.keyCode == 53 else { return false }
             MainActor.assumeIsolated { self?.onEscape() }
@@ -42,6 +50,34 @@ final class InputLock {
         isEngaged = false
         CGAssociateMouseAndMouseCursorPosition(1)
         CursorVisibility.show()
+        keyMonitors.forEach(NSEvent.removeMonitor)
+        keyMonitors = []
+        drainUntil = Date().addingTimeInterval(Self.drainDuration)
+        drainTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.finishDrainIfDone() }
+        }
+        Log.action.notice("Input lock released")
+    }
+
+    /// Removes the tap once the grace period is over and no swallowed
+    /// button is still waiting for its release (capped at 2 s).
+    private func finishDrainIfDone() {
+        guard let drainUntil else { return stopDrain() }
+        let now = Date()
+        if now < drainUntil { return }
+        if !buttonsHeld.isEmpty, now < drainUntil.addingTimeInterval(2) { return }
+        stopDrain()
+        removeTap()
+        buttonsHeld = []
+    }
+
+    private func stopDrain() {
+        drainTimer?.invalidate()
+        drainTimer = nil
+        drainUntil = nil
+    }
+
+    private func removeTap() {
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
@@ -49,9 +85,6 @@ final class InputLock {
         }
         tap = nil
         source = nil
-        keyMonitors.forEach(NSEvent.removeMonitor)
-        keyMonitors = []
-        Log.action.notice("Input lock released")
     }
 
     private func startTap() {
@@ -80,19 +113,50 @@ final class InputLock {
     fileprivate func handle(_ type: CGEventType, _ event: CGEvent) -> CGEvent? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            if isEngaged, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            if isEngaged || drainUntil != nil, let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return event
         default:
             break
         }
-        guard isEngaged else { return event }
         if event.getIntegerValueField(.eventSourceUserData) == ClickGate.syntheticMarker { return event }
+        guard isEngaged else { return drain(type, event) }
+        // Remember swallowed presses so their releases are swallowed too, even after release().
+        switch type {
+        case .leftMouseDown: buttonsHeld.insert(.leftMouseUp)
+        case .rightMouseDown: buttonsHeld.insert(.rightMouseUp)
+        case .otherMouseDown: buttonsHeld.insert(.otherMouseUp)
+        case .leftMouseUp, .rightMouseUp, .otherMouseUp: buttonsHeld.remove(type)
+        default: break
+        }
         // Only warp if the cursor actually escaped; warping on every event stutters.
         if type == .mouseMoved || type == .leftMouseDragged || type == .rightMouseDragged {
             let p = event.location
             if abs(p.x - frozenAt.x) > 1 || abs(p.y - frozenAt.y) > 1 { CGWarpMouseCursorPosition(frozenAt) }
         }
         return nil
+    }
+
+    /// Just after release: swallow new button presses during the grace
+    /// period, and the releases of any press that was swallowed.
+    private func drain(_ type: CGEventType, _ event: CGEvent) -> CGEvent? {
+        guard let drainUntil else { return event }
+        let pairs: [CGEventType: CGEventType] = [
+            .leftMouseDown: .leftMouseUp, .rightMouseDown: .rightMouseUp, .otherMouseDown: .otherMouseUp,
+        ]
+        if let up = pairs[type], Date() < drainUntil {
+            buttonsHeld.insert(up)
+            Log.action.debug("Swallowed click after overlay closed")
+            return nil
+        }
+        if buttonsHeld.contains(type) {
+            buttonsHeld.remove(type)
+            return nil
+        }
+        if type == .leftMouseDragged || type == .rightMouseDragged || type == .otherMouseDragged,
+           !buttonsHeld.isEmpty {
+            return nil
+        }
+        return event
     }
 }
 
